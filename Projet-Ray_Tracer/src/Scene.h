@@ -8,6 +8,8 @@
 #include "Sphere.h"
 #include "Square.h"
 #include "Vec3.h"
+#include "BoundingBox.h"
+#include "KdTree.h"
 
 
 #include <GL/glut.h>
@@ -49,13 +51,15 @@ struct RaySceneIntersection{
 
 
 class Scene {
+
     std::vector< Mesh > meshes;
     std::vector< Sphere > spheres;
     std::vector< Square > squares;
     std::vector< Light > lights;
 
-public:
+    std::vector<KdTreeNode*> kdTrees;
 
+public:
 
     Scene() {
     }
@@ -112,8 +116,9 @@ public:
             }
         }
 
-        for (int i = 0; i < meshes.size(); i++){
+/*      for (int i = 0; i < meshes.size(); i++){
             Mesh const & m = meshes[i];
+
             RayTriangleIntersection resultTriangleTemp = m.intersect(ray);
 
             if (resultTriangleTemp.intersectionExists){
@@ -126,7 +131,23 @@ public:
                     result.raySquareIntersection.normal = resultTriangleTemp.normal;
                 }
             }
-        }
+        } */
+
+       for (int i = 0; i < kdTrees.size(); i++){
+            KdTreeNode* kdTree = kdTrees[i];
+            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, result.rayMeshIntersection);
+            if (resultTriangleTemp.intersectionExists){
+                if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < result.t ) {
+                    result.intersectionExists = true;
+                    result.t = resultTriangleTemp.t;
+                    result.objectIndex = i;
+                    result.rayMeshIntersection = resultTriangleTemp;
+                    result.typeOfIntersectedObject = 2;
+                    result.raySquareIntersection.normal = resultTriangleTemp.normal;
+                }
+            }
+            
+        } 
         
         return result;
     }
@@ -168,6 +189,16 @@ public:
                 }
             }
         }
+        for (int i = 0; i < kdTrees.size(); i++){
+            KdTreeNode* kdTree = kdTrees[i];
+            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, resultTriangleTemp);
+            if (resultTriangleTemp.intersectionExists){
+                if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < distToLight ) {
+                    return true;
+                }
+            }
+            
+        } 
         
         return false;
     }
@@ -648,12 +679,28 @@ public:
             meshes.resize( meshes.size() + 1 );
             Mesh & m = meshes[meshes.size() - 1];
             //m.loadOFF("img/mesh/tetrahedron.off");
-            m.loadOFF("img/mesh/tetrahedron.off");
+            m.loadOFF("img/mesh/nefertiti.off");
             m.translate(Vec3(0., 0., -2.));
             m.build_arrays();
             m.material.diffuse_material = Vec3(0., 0., 1.);
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
+
+            // Extraire les triangles du maillage
+            std::vector<Triangle> triangles;
+            for (const auto& meshTriangle : m.triangles) {
+                Vec3 v0 = m.vertices[meshTriangle[0]].position;
+                Vec3 v1 = m.vertices[meshTriangle[1]].position;
+                Vec3 v2 = m.vertices[meshTriangle[2]].position;
+                triangles.emplace_back(v0, v1, v2);
+            }
+
+            KdTreeNode* kdTree = new KdTreeNode();
+            //kdTree->KdTreeBuild(triangles, 10);
+            //kdTrees.push_back(kdTree);
+            //kdTree->testKdTreeBuild();
+            //kdTree->testTraverse();
+            kdTree->testKdTreeBuildComplex();
         }
 
     }

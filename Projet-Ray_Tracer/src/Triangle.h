@@ -37,6 +37,10 @@ public:
     void setC1( Vec3 const & c1 ) { m_c[1] = c1; } // remember to update the area and normal afterwards!
     void setC2( Vec3 const & c2 ) { m_c[2] = c2; } // remember to update the area and normal afterwards!
 
+    std::vector<Vec3> getVertices() const {return {m_c[0], m_c[1], m_c[2]};}
+
+    Vec3 getCenter() const { return (m_c[0] + m_c[1] + m_c[2]) / 3.f; }
+
     Vec3 const & normal() const { return m_normal; }
 
     Vec3 projectOnSupportPlane( Vec3 const & p ) const {
@@ -81,7 +85,9 @@ public:
 
         Vec3 e1 = m_c[1] - m_c[0];
         Vec3 e2 = m_c[2] - m_c[0];
-        Vec3 triangleNormal = Vec3::cross(e2, e1);
+        //Vec3 triangleNormal = Vec3::cross(e2, e1);
+        //Vec3 triangleNormal = Vec3::cross(e1, e2);
+        Vec3 triangleNormal = m_normal;
         triangleNormal.normalize();
 
         float D = - Vec3::dot(m_c[0], triangleNormal);

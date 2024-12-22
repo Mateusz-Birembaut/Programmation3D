@@ -39,6 +39,8 @@ using namespace std;
 
 #include "src/Material.h"
 
+#include "src/KdTree.h"
+
 
 // -------------------------------------------
 // OpenGL/GLUT application code.
@@ -175,8 +177,10 @@ void ray_trace_from_camera() {
     camera.apply();
     Vec3 pos , dir;
 
-    //unsigned int nsamples = 100;
+    // construire kd tree ?
+
     
+    //unsigned int nsamples = 100;
     unsigned int nsamples = 10;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
     auto start = std::chrono::high_resolution_clock::now();

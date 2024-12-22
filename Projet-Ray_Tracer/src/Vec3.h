@@ -84,6 +84,20 @@ public:
         res[c2] = -mVals[c1];
         return res;
     }
+
+    int maxDimension() const {
+        if( mVals[0] > mVals[1] ) {
+            if( mVals[0] > mVals[2] ) {
+                return 0;
+            }
+            return 2;
+        }
+        if( mVals[1] > mVals[2] ) {
+            return 1;
+        }
+        return 2;
+    }
+    
 };
 
 static inline Vec3 operator + (Vec3 const & a , Vec3 const & b) {
