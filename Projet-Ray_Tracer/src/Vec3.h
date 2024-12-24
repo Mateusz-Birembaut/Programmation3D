@@ -129,6 +129,10 @@ static inline Vec3 operator * (Vec3 const & b , Vec3 const & a ) {
    return Vec3(a[0]*b[0] , a[1]*b[1] , a[2]*b[2]);
 }
 
+static inline bool  operator==(Vec3 const & b , Vec3 const & a ) {
+    return (b[0] == a[0] && b[1] == a[1] && b[2] == a[2]);
+}
+
 class Mat3 {
 public:
     ////////////         CONSTRUCTORS          //////////////

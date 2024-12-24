@@ -24,6 +24,7 @@ public:
         max = t;
     };
 
+
     BoundingBox meshBoundingBox(const std::vector<Triangle>& triangles) {
         BoundingBox box;
         box.min = Vec3(FLT_MAX, FLT_MAX, FLT_MAX); 
@@ -40,7 +41,6 @@ public:
                 box.max[2] = std::max(box.max[2], vertex[2]);
             }
         }
-
 
         return box;
     }
@@ -62,19 +62,26 @@ public:
         return box;
     }
 
+    std::pair<float, float> intersect(Ray const & ray) const { 
 
-    float intersect(Ray const & ray){
-
-        for(int i = 0; i < 3; i++){
+        for(int i = 0; i < 3; i++){ // test si le rayon est parallele a l'axe et n'est pas dans la boite
             if (ray.direction()[i] == 0 && (ray.origin()[i] < min[i] || ray.origin()[i] > max[i])){
-                return false;
+                return {INFINITY, INFINITY};
             }
         }
 
-        float tStart = -INFINITY;
-        float tEnd = INFINITY;
 
-        for(int i = 0; i < 3; i++){
+
+        float rd = 1.0f / ray.direction()[0];
+
+        float tStart = (min[0] - ray.origin()[0]) * rd;
+        float tEnd = (max[0] - ray.origin()[0]) * rd;
+
+        if (tStart > tEnd){
+            std::swap(tStart, tEnd);
+        }
+
+        for(int i = 1; i < 3; i++){
             float rd = 1.0f / ray.direction()[i];
 
             float t1 = (min[i] - ray.origin()[i]) * rd;
@@ -92,21 +99,13 @@ public:
             }
         }
 
-        if (tStart > tEnd){
-            return 0.0f;
+        if (tStart > tEnd || tEnd < 0.0001){
+            return {INFINITY, INFINITY};
         }
 
-        if (tEnd < 0.0001){
-            return 0.0f;
-        }
-
-        if (tStart > 0.0001){
-            return tStart;
-        }else {
-            return tEnd;
-        }
-
+        return {tStart, tEnd};
     }
+        
 
 };
 #endif 

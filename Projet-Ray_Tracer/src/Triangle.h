@@ -79,6 +79,7 @@ public:
 
         // 1) check that the ray is not parallel to the triangle:
         if(isParallelTo(ray)){
+            //std::cout << "le triangle est parallel to the triangle" << std::endl;
             return result;
         }
 
@@ -95,6 +96,7 @@ public:
         // 2) check that the triangle is "in front of" the ray:
         float t = - (Vec3::dot(triangleNormal, ray.origin()) + D) / Vec3::dot(triangleNormal, ray.direction());
         if (t <= 0.001){
+            //std::cout << "le rayon est derriere le rayon" << std::endl;
             return result;
         }
 
