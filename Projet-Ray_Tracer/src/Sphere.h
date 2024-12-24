@@ -14,13 +14,15 @@ struct RaySphereIntersection{
     Vec3 normal;
 };
 
-static
-Vec3 SphericalCoordinatesToEuclidean( Vec3 ThetaPhiR ) {
-    return ThetaPhiR[2] * Vec3( cos(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[1]) );
-}
+
 static
 Vec3 SphericalCoordinatesToEuclidean( float theta , float phi ) {
     return Vec3( cos(theta) * cos(phi) , sin(theta) * cos(phi) , sin(phi) );
+}
+
+static
+Vec3 SphericalCoordinatesToEuclidean( Vec3 ThetaPhiR ) {
+    return ThetaPhiR[2] * Vec3( cos(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[1]) );
 }
 
 static
@@ -81,6 +83,14 @@ public:
         }
     }
 
+
+    Vec3 getSphereUV(const Vec3& p) const{
+        float u = 0.5f + atan2(p[2], p[0]) / (2.0f * M_PI);
+        float v = 0.5f - asin(p[1]) / M_PI;
+        return Vec3(u, v, 0);
+    }
+
+
     RaySphereIntersection intersect(const Ray &ray) const {
         RaySphereIntersection intersection;
         intersection.intersectionExists = false;
@@ -136,6 +146,11 @@ public:
         Vec3 normal = (intersection_point - this->m_center);
         normal.normalize();
         intersection.normal = normal;
+
+        Vec3 uv = getSphereUV(normal);
+
+        intersection.theta = uv[0];
+        intersection.phi = uv[1];
 
         return intersection;
     }

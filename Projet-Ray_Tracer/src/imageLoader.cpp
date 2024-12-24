@@ -201,6 +201,9 @@ void load_ppm( unsigned char * & pixels , unsigned int & w , unsigned int & h , 
         return;
     }
 }
+
+
+
 }
 
 

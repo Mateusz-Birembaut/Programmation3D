@@ -65,11 +65,11 @@ public:
     }
 
     void draw() {
-/*         // iterer sur l'ensemble des objets, et faire leur rendu :
+        // iterer sur l'ensemble des objets, et faire leur rendu :
          for( unsigned int It = 0 ; It < meshes.size() ; ++It ) {
             Mesh const & mesh = meshes[It];
             mesh.draw();
-        }  */
+        } 
         for( unsigned int It = 0 ; It < spheres.size() ; ++It ) {
             Sphere const & sphere = spheres[It];
             sphere.draw();
@@ -78,10 +78,10 @@ public:
             Square const & square = squares[It];
             square.draw();
         }
-        for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
+/*         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
             KdTree* kdTree = kdTrees[It];
             kdTree->drawBoundingBoxesHelper(kdTree->root);
-        }
+        } */
     }
 
 
@@ -90,7 +90,7 @@ public:
         result.t = FLT_MAX; 
         result.intersectionExists = false; 
 
-        for( int It = 0 ; It < spheres.size() ; ++It ) {
+        for( unsigned int It = 0 ; It < spheres.size() ; ++It ) {
             Sphere const & sphere = spheres[It];
             RaySphereIntersection resultSphereTemp = sphere.intersect(ray);
             if (resultSphereTemp.intersectionExists ) {
@@ -104,7 +104,7 @@ public:
             }
             
         }
-        for (int i = 0; i < squares.size(); i++){
+        for (unsigned int i = 0; i < squares.size(); i++){
             Square const & square = squares[i];
             RaySquareIntersection resultSquareTemp = square.intersect(ray);
 
@@ -120,7 +120,7 @@ public:
             }
         }
 
-/*      for (int i = 0; i < meshes.size(); i++){
+/*      for (unsigned int i = 0; i < meshes.size(); i++){
             Mesh const & m = meshes[i];
 
             RayTriangleIntersection resultTriangleTemp = m.intersect(ray);
@@ -137,7 +137,7 @@ public:
             }
         } */
 
-        for( int i = 0; i < kdTrees.size(); i++){
+        for( unsigned int i = 0; i < kdTrees.size(); i++){
             KdTree* kdTree = kdTrees[i];
             std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
 
@@ -164,7 +164,7 @@ public:
     bool intersectObject(Ray const & ray, Vec3 const & lightPos) { // retourne true si un objet est entre le point d'intersection et la lumière et false sinon
         float distToLight = (lightPos - ray.origin()).length();
   
-        for( int It = 0 ; It < spheres.size() ; ++It ) {
+        for( unsigned int It = 0 ; It < spheres.size() ; ++It ) {
             Sphere const & sphere = spheres[It];
             RaySphereIntersection resultSphereTemp = sphere.intersect(ray);
             if (resultSphereTemp.intersectionExists ) {
@@ -177,7 +177,7 @@ public:
             }
             
         }
-        for (int i = 0; i < squares.size(); i++){
+        for (unsigned int i = 0; i < squares.size(); i++){
             Square const & square = squares[i];
             RaySquareIntersection resultSquareTemp = square.intersect(ray);
 
@@ -199,7 +199,7 @@ public:
             }
         }  */
 
-       for (int i = 0; i < kdTrees.size(); i++){
+       for (unsigned int i = 0; i < kdTrees.size(); i++){
             KdTree* kdTree = kdTrees[i];
             std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
 
@@ -224,25 +224,32 @@ public:
         Vec3 color;
         if (raySceneIntersection.intersectionExists) {  
             int index = raySceneIntersection.objectIndex;
-            float shininess_obj, transparency_obj, index_medium_obj;
-            MaterialType material_type_obj;
-            Vec3 P, N, L, V, ambient_obj, diffuse_obj, specular_obj;
+            Material mat;
+            Vec3 P, N, L, V;
+            float u, v;
 
             if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
                 P = raySceneIntersection.raySphereIntersection.intersection; 
                 N = raySceneIntersection.raySphereIntersection.normal; 
 
-                extractMaterialProperties(index, spheres[index].material, ambient_obj, diffuse_obj, specular_obj, shininess_obj, material_type_obj, transparency_obj, index_medium_obj);
+                mat = spheres[index].material;
+                u = raySceneIntersection.raySphereIntersection.theta ;
+                v = raySceneIntersection.raySphereIntersection.phi;
+
             } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
                 P = raySceneIntersection.raySquareIntersection.intersection; 
                 N = raySceneIntersection.raySquareIntersection.normal; 
 
-                extractMaterialProperties(index, squares[index].material, ambient_obj, diffuse_obj, specular_obj, shininess_obj, material_type_obj, transparency_obj, index_medium_obj);
+                mat = squares[index].material;
+                u = raySceneIntersection.raySquareIntersection.u;
+                v = raySceneIntersection.raySquareIntersection.v;
+                
             } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
                 P = raySceneIntersection.rayMeshIntersection.intersection; 
                 N = raySceneIntersection.rayMeshIntersection.normal; 
                 
-                extractMaterialProperties(index, meshes[index].material, ambient_obj, diffuse_obj, specular_obj, shininess_obj, material_type_obj, transparency_obj, index_medium_obj);
+                mat = meshes[index].material;
+                
             }
 
             P = P + 0.00001 * N; 
@@ -251,13 +258,13 @@ public:
             V.normalize();
 
 
-            if(material_type_obj != Material_Mirror && material_type_obj != Material_Glass){
+            if(mat.type != Material_Mirror && mat.type  != Material_Glass){
             
                 for(Light& light : lights) {
                     L = light.pos - P; // le vecteur du point d'intersection vers la lumière
                     L.normalize();
 
-                    Vec3 color_current = shade(light, L, V, N, ray.origin(), shininess_obj, diffuse_obj, specular_obj, ambient_obj);
+                    Vec3 color_current = shade(light, L, V, N, ray.origin(), mat, u , v);
                     float unblocked_rays_percentage = traceShadowRays(light, P, N, 5);
                     color_current *= unblocked_rays_percentage;
 
@@ -268,11 +275,11 @@ public:
             }
             
             if( NRemainingBounces > 0 ){
-                if (material_type_obj == Material_Mirror ) {
+                if (mat.type == Material_Mirror ) {
                     Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
                     color = rayTraceRecursive(reflectedRay, NRemainingBounces - 1);
-                }else if ( material_type_obj == Material_Glass ) {
-                    Ray refractedRay = Ray(P ,refract(ray.direction(), N, index_medium_obj)); 
+                }else if ( mat.type == Material_Glass ) {
+                    Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
                     color = rayTraceRecursive(refractedRay, NRemainingBounces - 1);
                 }           
             }
@@ -283,14 +290,14 @@ public:
         return color;
     }
 
-    Vec3 reflect(Vec3 N, Vec3 I) {
+    Vec3 reflect(Vec3& N, Vec3& I) {
         float cosI = -1 * Vec3::dot(N, I);
         Vec3 reflectedDirection = (I + 2 * cosI * N);
         reflectedDirection.normalize();
         return reflectedDirection;
     }
 
-    Vec3 refract(const Vec3 &I, const Vec3 &N,  float eta_t,  float eta_i=1.f) {
+    Vec3 refract(Vec3 &I, Vec3 &N,  float eta_t,  float eta_i=1.f) {
         float cosi = -std::max(-1.f, std::min(1.f, Vec3::dot(I, N)));
         Vec3 n = N;
         if (cosi<0){
@@ -307,18 +314,22 @@ public:
         return unit_vector;
     }
 
-    Vec3 shade(Light light, Vec3 L, Vec3 V, Vec3 N, Vec3 ray_origin, float shininess_obj , Vec3 diffuse_obj, Vec3 specular_obj, Vec3 ambient_obj) {
+    Vec3 shade(Light& light, Vec3& L, Vec3& V, Vec3& N, Vec3& ray_origin, Material& mat, float& u, float& v) {
         Vec3 R = 2 * Vec3::dot(N, L) * (N) - L;
         R.normalize();
 
-        Vec3 ambient = ambient_obj;
-        Vec3 diffuse = diffuse_obj * std::max(0.0f, Vec3::dot(L, N));
-        Vec3 specular = specular_obj * std::pow(std::max(0.0f, Vec3::dot(R, V)), shininess_obj);
+        Vec3 ambient = mat.ambient_material;
+        if( mat.texture != nullptr ) {
+            mat.diffuse_material = mat.texture->sampleTextureAsVec3(u,v);
+        }
+        Vec3 diffuse = mat.diffuse_material * std::max(0.0f, Vec3::dot(L, N));
+
+        Vec3 specular = mat.specular_material * std::pow(std::max(0.0f, Vec3::dot(R, V)), mat.shininess);
 
         return  (ambient + diffuse + specular) * light.material;
     }
     
-    float traceShadowRays (Light& light, Vec3 P, Vec3 N, float nbShadowRays) {
+    float traceShadowRays (Light& light, Vec3& P, Vec3& N, float nbShadowRays) {
         int number_shadow_rays = 0;
 
         for (int i = 0; i < nbShadowRays; i++) {
@@ -334,23 +345,13 @@ public:
     }
     
 
-    Vec3 randomPointOnLight(float radius, const Vec3& center) {
+    Vec3 randomPointOnLight(float& radius, const Vec3& center) {
         float theta = ((float)rand() / RAND_MAX) * 2 * M_PI;
         float phi = acos(1 - 2 * ((float)rand() / RAND_MAX));
         float x = radius * sin(phi) * cos(theta);
         float y = radius * sin(phi) * sin(theta);
         float z = radius * cos(phi);
         return Vec3(x, y, z) + center; 
-    }
-
-    void extractMaterialProperties(int index, Material& material, Vec3& ambient_obj, Vec3& diffuse_obj, Vec3& specular_obj, float& shininess_obj, MaterialType& material_type_obj, float& transparency_obj, float& index_medium_obj) {
-        ambient_obj = material.ambient_material;
-        diffuse_obj = material.diffuse_material;
-        specular_obj = material.specular_material;
-        shininess_obj = material.shininess;
-        transparency_obj = material.transparency;
-        index_medium_obj = material.index_medium;
-        material_type_obj = material.type;
     }
 
     Vec3 rayTrace( Ray const & rayStart ) {
@@ -379,12 +380,20 @@ public:
             spheres.resize( spheres.size() + 2 );
             Sphere & s = spheres[spheres.size() - 2];
             s.m_center = Vec3(1.0,0.0,0.0);
-            s.m_radius = 0.5f;
+            s.m_radius = 2.f;
             s.build_arrays();
-            s.material.type = Material_Mirror;
             s.material.diffuse_material = Vec3( 1.,0.,0. );
             s.material.specular_material = Vec3( 0.2,0.2,0.2 );
             s.material.shininess = 20;
+
+            std::cout << "Texture loading" << std::endl;
+
+            auto texture = new ppmLoader::ImageRGB;
+            ppmLoader::load_ppm(*texture, "img/textures/damier.ppm");
+            s.material.texture = texture;
+
+            std::cout << "Texture loaded" << std::endl;
+
         }
     }
 
@@ -427,6 +436,8 @@ public:
             s2.material.diffuse_material = Vec3(0., 1., 0.);
             s2.material.specular_material = Vec3(0.2, 0.2, 0.2);
             s2.material.shininess = 20;
+
+            
         }
     }
 
@@ -655,13 +666,22 @@ public:
             squares.resize( squares.size() + 1 );
             Square & s = squares[squares.size() - 1];
             s.setQuad(Vec3(-1., -1., 0.), Vec3(1., 0, 0.), Vec3(0., 1, 0.), 200., 200.);
-            s.translate(Vec3(-50., 0., -2.));
+            s.translate(Vec3(-50., -50., -2.));
             s.scale(Vec3(2., 2., 1.));
             s.rotate_x(-90);
             s.build_arrays();
             s.material.diffuse_material = Vec3( 0.13,1,0.13 );
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16;
+
+            std::cout << "Texture loading" << std::endl;
+
+            auto texture = new ppmLoader::ImageRGB;
+            ppmLoader::load_ppm(*texture, "img/textures/damier.ppm");
+            s.material.texture = texture;
+
+            std::cout << "Texture loaded" << std::endl;
+            
         }
 
 
@@ -694,6 +714,30 @@ public:
             s.material.shininess = 16;
             s.material.transparency = 0.;
             s.material.index_medium = 0.;
+        }
+
+        { //MIRRORED Sphere
+            spheres.resize( spheres.size() + 1 );
+            Sphere & s = spheres[spheres.size() - 1];
+            s.m_center = Vec3(0.0, -1.25, 2.5);
+            s.m_radius = 0.75f;
+            s.scale(Vec3(3., 3., 3.));
+            s.rotate_x(90);
+            s.build_arrays();
+            s.material.diffuse_material = Vec3( 1.,1.,1. );
+            s.material.specular_material = Vec3(  1.,1.,1. );
+            s.material.shininess = 16;
+            s.material.transparency = 0.;
+            s.material.index_medium = 0.;
+            
+            std::cout << "Texture loading" << std::endl;
+
+            auto texture = new ppmLoader::ImageRGB;
+            ppmLoader::load_ppm(*texture, "img/textures/s1.ppm");
+            s.material.texture = texture;
+
+            std::cout << "Texture loaded" << std::endl;
+
         }
 
         { // Mesh

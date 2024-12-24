@@ -25,6 +25,8 @@ struct Material {
 
     MaterialType type;
 
+    ppmLoader::ImageRGB * texture;
+
     Material() {
         type = Material_Diffuse_Blinn_Phong;
         transparency = 0.0;

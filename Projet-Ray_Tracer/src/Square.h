@@ -95,6 +95,8 @@ public:
             intersection.t = t;
             intersection.intersection = intersection_point;
             intersection.normal = m_normal;
+            intersection.u = x;
+            intersection.v = y;
         }
 
         return intersection;
