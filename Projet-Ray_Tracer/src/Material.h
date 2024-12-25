@@ -32,6 +32,8 @@ struct Material {
         transparency = 0.0;
         index_medium = 1.0;
         ambient_material = Vec3(0., 0., 0.);
+        texture = nullptr;
+        shininess = 0.;
     }
 };
 

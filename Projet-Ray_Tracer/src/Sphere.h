@@ -6,7 +6,7 @@
 #include <cmath>
 
 struct RaySphereIntersection{
-    bool intersectionExists;
+    bool intersectionExists = false;
     float t;
     float theta,phi;
     Vec3 intersection;
@@ -20,7 +20,7 @@ Vec3 SphericalCoordinatesToEuclidean( float theta , float phi ) {
     return Vec3( cos(theta) * cos(phi) , sin(theta) * cos(phi) , sin(phi) );
 }
 
-static
+/* static
 Vec3 SphericalCoordinatesToEuclidean( Vec3 ThetaPhiR ) {
     return ThetaPhiR[2] * Vec3( cos(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[0]) * cos(ThetaPhiR[1]) , sin(ThetaPhiR[1]) );
 }
@@ -32,7 +32,7 @@ Vec3 EuclideanCoordinatesToSpherical( Vec3 xyz ) {
     float theta = atan2( xyz[1] , xyz[0] );
     return Vec3( theta , phi , R );
 }
-
+ */
 
 
 class Sphere : public Mesh {
@@ -85,15 +85,17 @@ public:
 
 
     Vec3 getSphereUV(const Vec3& p) const{
-        float u = 0.5f + atan2(p[2], p[0]) / (2.0f * M_PI);
-        float v = 0.5f - asin(p[1]) / M_PI;
+        float invPi = 1.0f / M_PI;
+        float u = 0.5f + atan2(p[2], p[0]) * (invPi * 0.5f);
+        float v = 0.5f - asin(p[1]) * invPi;
         return Vec3(u, v, 0);
     }
 
 
     RaySphereIntersection intersect(const Ray &ray) const {
         RaySphereIntersection intersection;
-        intersection.intersectionExists = false;
+
+        float inv2 = 1.0 / 2.0;
 
         Vec3 ray_origin = ray.origin();
         Vec3 ray_direction = ray.direction();
@@ -111,7 +113,7 @@ public:
         }
 
         if (discriminant == 0) {
-            float t = -b / 2.0;
+            float t = -b * inv2;
             if (t > 0){
                 intersection.intersection = ray_origin + t * ray_direction;
                 intersection.intersectionExists = true;
@@ -128,8 +130,8 @@ public:
 
         float sqrtDiscriminant = sqrt(discriminant);
 
-        float t1 = (-b + sqrtDiscriminant) / 2.0;
-        float t2 = (-b - sqrtDiscriminant) / 2.0;
+        float t1 = (-b + sqrtDiscriminant) * inv2;
+        float t2 = (-b - sqrtDiscriminant) * inv2;
 
         float min_positif = getSmallestT(t1, t2);
 
@@ -166,7 +168,6 @@ public:
             return t1;
         }
         return std::min(t1, t2);
-
     }
 
 

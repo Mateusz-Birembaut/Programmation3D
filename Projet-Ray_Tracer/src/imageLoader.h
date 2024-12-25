@@ -27,13 +27,22 @@ struct ImageRGB
     vector<RGB> data;
 
     Vec3 sampleTextureAsVec3(float u, float v) {
+        u = 1.0f - u; // flip u 
         std::clamp(u, 0.0f, 1.0f);
         std::clamp(v, 0.0f, 1.0f);
 
         int x = static_cast<int>(u * (w - 1));
         int y = static_cast<int>(v * (h - 1));
 
-        RGB color = data[y * w + x];
+        unsigned int index = y * w + x;
+
+        if (index < 0 || index >= data.size()) {
+            std::cerr << "Error: Texture coordinate out of bounds. u: " << u << ", v: " << v << ", index: " << index << std::endl;
+            return Vec3(0.0f, 0.0f, 0.0f);
+        }
+
+        RGB color = data[index];
+
         return Vec3(static_cast<float>(color.r) / 255.0f,
                     static_cast<float>(color.g) / 255.0f,
                     static_cast<float>(color.b) / 255.0f);

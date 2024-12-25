@@ -6,7 +6,7 @@
 #include <cmath>
 
 struct RaySquareIntersection{
-    bool intersectionExists;
+    bool intersectionExists = false;
     float t;
     float u,v;
     Vec3 intersection;
@@ -62,7 +62,6 @@ public:
 
     RaySquareIntersection intersect(const Ray &ray) const {
         RaySquareIntersection intersection;
-        intersection.intersectionExists = false;
 
         Vec3 m_bottom_left = vertices[0].position;
         Vec3 m_right_vector = vertices[1].position - vertices[0].position;
@@ -73,13 +72,13 @@ public:
         float D = Vec3::dot(m_bottom_left, m_normal);
         float denominator = Vec3::dot(ray.direction(), m_normal);
 
-        if( denominator >= 0){ // si le determinant rayon.direction et plan.normal est nul, alors le rayon est parallele au plan donc pas d'intersection et si > 0, le rayon va "s'éloigner" donc pas d'intersection
+        if( denominator >= 0.0001){ // si le determinant rayon.direction et plan.normal est nul, alors le rayon est parallele au plan donc pas d'intersection et si > 0, le rayon va "s'éloigner" donc pas d'intersection
             return intersection;
         }
 
-        float t = (D - Vec3::dot(ray.origin(), m_normal))/ denominator;
+        float t = (D - Vec3::dot(ray.origin(), m_normal)) / denominator;
 
-        if( t <= 0){ // si l'intersection est derrière la caméra on s'en occupe pas
+        if( t <= 0.00001){ // si l'intersection est derrière la caméra on s'en occupe pas
             return intersection;
         }
 

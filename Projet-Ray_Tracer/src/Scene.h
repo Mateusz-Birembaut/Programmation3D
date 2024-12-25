@@ -15,6 +15,11 @@
 #include <GL/glut.h>
 
 
+#include <random>
+
+static std::mt19937 rng(std::random_device{}());
+static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+
 enum LightType {
     LightType_Spherical,
     LightType_Quad
@@ -78,10 +83,10 @@ public:
             Square const & square = squares[It];
             square.draw();
         }
-/*         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
+        for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
             KdTree* kdTree = kdTrees[It];
             kdTree->drawBoundingBoxesHelper(kdTree->root);
-        } */
+        }
     }
 
 
@@ -169,9 +174,9 @@ public:
             RaySphereIntersection resultSphereTemp = sphere.intersect(ray);
             if (resultSphereTemp.intersectionExists ) {
                 if (resultSphereTemp.t > 0.001 && resultSphereTemp.t < distToLight) {   
-                    if (sphere.material.type == Material_Glass) { // si on intersecte une sphere en verre, on ne le considère pas comme un obstacle
+                    /*if (sphere.material.type == Material_Glass) { // si on intersecte une sphere en verre, on ne le considère pas comme un obstacle
                         continue;
-                    }                 
+                    }*/               
                     return true;
                 }
             }
@@ -226,7 +231,7 @@ public:
             int index = raySceneIntersection.objectIndex;
             Material mat;
             Vec3 P, N, L, V;
-            float u, v;
+            float u = 0.0f, v = 0.0f;
 
             if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
                 P = raySceneIntersection.raySphereIntersection.intersection; 
@@ -264,10 +269,14 @@ public:
                     L = light.pos - P; // le vecteur du point d'intersection vers la lumière
                     L.normalize();
 
-                    Vec3 color_current = shade(light, L, V, N, ray.origin(), mat, u , v);
                     float unblocked_rays_percentage = traceShadowRays(light, P, N, 5);
-                    color_current *= unblocked_rays_percentage;
+                    if (unblocked_rays_percentage == 0){
+                        continue;
+                    }
+                    
 
+                    Vec3 color_current = shade(light, L, V, N, ray.origin(), mat, u , v);
+                    color_current *= unblocked_rays_percentage;
                     color += color_current;
                 }
 
@@ -277,10 +286,10 @@ public:
             if( NRemainingBounces > 0 ){
                 if (mat.type == Material_Mirror ) {
                     Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
-                    color = rayTraceRecursive(reflectedRay, NRemainingBounces - 1);
+                    color += rayTraceRecursive(reflectedRay, NRemainingBounces - 1);
                 }else if ( mat.type == Material_Glass ) {
                     Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
-                    color = rayTraceRecursive(refractedRay, NRemainingBounces - 1);
+                    color += rayTraceRecursive(refractedRay, NRemainingBounces - 1);
                 }           
             }
             
@@ -346,12 +355,14 @@ public:
     
 
     Vec3 randomPointOnLight(float& radius, const Vec3& center) {
-        float theta = ((float)rand() / RAND_MAX) * 2 * M_PI;
-        float phi = acos(1 - 2 * ((float)rand() / RAND_MAX));
+        float u = dist(rng);
+        float v = dist(rng);
+        float theta = u * 2.0f * M_PI;
+        float phi = acos(1.0f - 2.0f * v);
         float x = radius * sin(phi) * cos(theta);
         float y = radius * sin(phi) * sin(theta);
         float z = radius * cos(phi);
-        return Vec3(x, y, z) + center; 
+        return Vec3(x, y, z) + center;
     }
 
     Vec3 rayTrace( Ray const & rayStart ) {
@@ -751,7 +762,7 @@ public:
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree* kdTree = new KdTree(&m, 12);
+            KdTree* kdTree = new KdTree(&m, 8);
             if (kdTree) {
                 kdTrees.push_back(kdTree);
             } else {

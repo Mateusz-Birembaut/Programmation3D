@@ -98,8 +98,8 @@ vsub(const float *src1, const float *src2, float *dst)
 void
 vcopy(const float *v1, float *v2)
 {
-    register int i;
-    for (i = 0 ; i < 3 ; i++)
+    //register int i;
+    for (int i = 0 ; i < 3 ; i++)
         v2[i] = v1[i];
 }
 

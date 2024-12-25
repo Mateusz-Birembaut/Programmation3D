@@ -221,4 +221,39 @@ void screen_space_to_world_space_ray(float u , float v , Vec3 & position , Vec3 
     direction.normalize();
 }
 
+
+GLdouble modelview[16], modelviewInverse[16];
+GLdouble projection[16], projectionInverse[16];
+GLdouble nearAndFarPlanes[2];
+
+void updateMatrices() {
+    glMatrixMode(GL_MODELVIEW);
+    glGetDoublev(GL_MODELVIEW_MATRIX, modelview);
+    gluInvertMatrix(modelview, modelviewInverse);
+
+    glMatrixMode(GL_PROJECTION);
+    glGetDoublev(GL_PROJECTION_MATRIX, projection);
+    gluInvertMatrix(projection, projectionInverse);
+
+    glGetDoublev(GL_DEPTH_RANGE, nearAndFarPlanes);
+}
+
+void screen_space_to_world_space_ray_2(float u, float v,
+                                               Vec3 &position, Vec3 &direction)
+{
+    GLdouble resInt[4];
+    mult(projectionInverse, (GLdouble)(2.f*u - 1.f),
+         -((GLdouble)(2.f*v - 1.f)), nearAndFarPlanes[0], 1.0,
+         resInt[0], resInt[1], resInt[2], resInt[3]);
+
+    GLdouble res[4];
+    mult(modelviewInverse, resInt[0], resInt[1], resInt[2], resInt[3],
+         res[0], res[1], res[2], res[3]);
+
+    position = cameraSpaceToWorldSpace(Vec3(0, 0, 0)); // éventuellement précalculer ici aussi
+    direction = Vec3(res[0]/res[3], res[1]/res[3], res[2]/res[3]) - position;
+    direction.normalize();
+}
+
+
 #endif // matrixUtilities_H

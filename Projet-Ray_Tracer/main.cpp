@@ -177,21 +177,24 @@ void ray_trace_from_camera() {
     camera.apply();
     Vec3 pos , dir;
 
-    // construire kd tree ?
-
+    // pre process
     
     //unsigned int nsamples = 100;
     unsigned int nsamples = 10;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
     auto start = std::chrono::high_resolution_clock::now();
 
+
+    updateMatrices();
+    pos = cameraSpaceToWorldSpace(Vec3(0,0,0));
+
     for (int y=0; y<h; y++){
         for (int x=0; x<w; x++) {
             Vec3 sum_color(0, 0, 0);
             for (unsigned int s = 0; s < nsamples; ++s) {
-                float u = (x + static_cast<float>(rand()) / RAND_MAX) / w;
-                float v = (y + static_cast<float>(rand()) / RAND_MAX) / h;
-                screen_space_to_world_space_ray(u, v, pos, dir);
+                float u = (x + dist(rng)) / w;
+                float v = (y + dist(rng)) / h;
+                screen_space_to_world_space_ray_2(u, v, pos, dir);
                 Vec3 color = scenes[selected_scene].rayTrace(Ray(pos, dir));
                 sum_color += color;
             }
@@ -202,8 +205,9 @@ void ray_trace_from_camera() {
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
     std::cout << "Ray tracing completed in " << elapsed.count() << " seconds." << std::endl;
-
     std::cout << "\tDone" << std::endl;
+
+    // ajouter post process ?
 
     std::string filename = "./rendu.ppm";
     ofstream f(filename.c_str(), ios::binary);

@@ -40,11 +40,14 @@ public:
                     a[2]*b[0] - a[0]*b[2] ,
                     a[0]*b[1] - a[1]*b[0] );
     }
+    
     void operator += (Vec3 const & other) {
         mVals[0] += other[0];
         mVals[1] += other[1];
         mVals[2] += other[2];
-    }
+    } 
+
+
     void operator -= (Vec3 const & other) {
         mVals[0] -= other[0];
         mVals[1] -= other[1];

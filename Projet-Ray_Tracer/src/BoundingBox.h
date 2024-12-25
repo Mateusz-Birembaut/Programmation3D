@@ -25,7 +25,7 @@ public:
     };
 
 
-    BoundingBox meshBoundingBox(const std::vector<Triangle>& triangles) {
+    static BoundingBox meshBoundingBox(const std::vector<Triangle>& triangles) {
         BoundingBox box;
         box.min = Vec3(FLT_MAX, FLT_MAX, FLT_MAX); 
         box.max = Vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX); 
@@ -45,7 +45,7 @@ public:
         return box;
     }
 
-    BoundingBox triangleBoundingBox(const Triangle & triangle) {
+    static BoundingBox triangleBoundingBox(const Triangle & triangle) {
         BoundingBox box;
         box.min = Vec3(FLT_MAX, FLT_MAX, FLT_MAX); 
         box.max = Vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX); 
@@ -69,8 +69,6 @@ public:
                 return {INFINITY, INFINITY};
             }
         }
-
-
 
         float rd = 1.0f / ray.direction()[0];
 
@@ -104,6 +102,11 @@ public:
         }
 
         return {tStart, tEnd};
+    }
+
+    static float calculateSurfaceArea(const BoundingBox& box) {
+        Vec3 dimensions = box.max - box.min;
+        return 2 * (dimensions[0] * dimensions[1] + dimensions[1] * dimensions[2] + dimensions[2] * dimensions[0]);
     }
         
 

@@ -38,14 +38,14 @@ public:
         }
         std::cout << "Building KdTree with " << triangles.size() << " triangles" << std::endl;
         maxDepth = _maxDepth;
-        box = BoundingBox().meshBoundingBox(triangles);
+        box = BoundingBox::meshBoundingBox(triangles);
         root = new KdNode();
         root->node_box = box;
         KdTreeBuild(box, root, triangles);
     }
 
     void KdTreeBuild(BoundingBox _parentBox, KdNode* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
-        if (depth == maxDepth || _triangles.size() == 0){ // depth max atteint
+        if (depth == maxDepth){ 
             _node->isLeaf = true;
             _node->triangles = _triangles;
             _node->left = nullptr;
@@ -53,25 +53,19 @@ public:
             return;
         }
 
-        //std::cout << "Bounding box: " << _parentBox.min << " " << _parentBox.max << std::endl;
-        
         Vec3 diff = _parentBox.max - _parentBox.min;
-        _node->dimSplit = diff.maxDimension(); // quelle dimension a split
-        _node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; // on coupe en deux
+        _node->dimSplit = diff.maxDimension(); 
+        //_node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
+        _node->splitDistance = findBestSplit(_node, _parentBox, _triangles, _node->dimSplit, 10);
 
         std::vector<Triangle> leftTriangles;
         std::vector<Triangle> rightTriangles;
 
         for (const Triangle& triangle : _triangles){ 
-            BoundingBox triangleBox = BoundingBox().triangleBoundingBox(triangle);
-            if (triangleBox.max[_node->dimSplit] < _node->splitDistance){
-                leftTriangles.push_back(triangle);
-            } else if (triangleBox.min[_node->dimSplit] > _node->splitDistance){
-                rightTriangles.push_back(triangle);
-            } else {
-                leftTriangles.push_back(triangle);
-                rightTriangles.push_back(triangle);
-            }
+            BoundingBox triangleBox = BoundingBox::triangleBoundingBox(triangle);
+            if (triangleBox.min[_node->dimSplit] <= _node->splitDistance) leftTriangles.push_back(triangle);
+            if (triangleBox.max[_node->dimSplit] > _node->splitDistance) rightTriangles.push_back(triangle);
+
         }
         _node->left = new KdNode();
         _node->right = new KdNode();
@@ -91,11 +85,56 @@ public:
 
     }
 
+    float findBestSplit(KdNode* _node, const BoundingBox& _parentBox, const std::vector<Triangle>& _triangles, int _dimSplit, int _splitsToTest) {
+        Vec3 diff = _parentBox.max - _parentBox.min;
+        float totalArea = BoundingBox::calculateSurfaceArea(_parentBox);
+
+        float bestCost = FLT_MAX;
+        float bestSplit = 0.0f;
+
+        float step = diff[_dimSplit] / _splitsToTest;
+
+        for (int i = 1; i < _splitsToTest; ++i) {
+            float split = _parentBox.min[_dimSplit] + i * step;
+
+            BoundingBox leftBox = _parentBox;
+            leftBox.max[_dimSplit] = split;
+            float leftArea = BoundingBox::calculateSurfaceArea(leftBox);
+
+            BoundingBox rightBox = _parentBox;
+            rightBox.min[_dimSplit] = split;
+            float rightArea = BoundingBox::calculateSurfaceArea(rightBox);
+
+            int numLeft = 0;
+            int numRight = 0;
+
+
+            for (const Triangle& triangle : _triangles) {
+                BoundingBox triBox = BoundingBox::triangleBoundingBox(triangle);
+                if (triBox.min[_dimSplit] <= split) numLeft ++;
+                if (triBox.max[_dimSplit] > split) numRight ++;
+            }
+
+            float cost = calculateCost(numLeft, leftArea, numRight, rightArea, totalArea);
+
+            if (cost < bestCost) {
+                bestCost = cost;
+                bestSplit = split;
+            }
+        }
+
+        return bestSplit;
+    }
+
+
+    float calculateCost(int numLeft, float leftArea, int numRight, float rightArea, float totalArea) {
+        return (numLeft * leftArea + numRight * rightArea) / totalArea;
+    }
+
+
     RayTriangleIntersection traverse(Ray const & ray, KdNode* _node, float t_start, float t_end) const {
         if (_node->isLeaf){
             RayTriangleIntersection intersection;
-            intersection.intersectionExists = false;
-            intersection.t = FLT_MAX;
             for (const Triangle& triangle : _node->triangles) {
                 RayTriangleIntersection tempIntersection = triangle.getIntersection(ray);
                 if (tempIntersection.intersectionExists && tempIntersection.t < t_end && tempIntersection.t > t_start) {
@@ -103,6 +142,11 @@ public:
                 }
             }
             return intersection;
+        }
+
+        std::pair<float, float> interval = _node->node_box.intersect(ray);
+        if (interval.first == INFINITY && interval.second == INFINITY) {
+            return RayTriangleIntersection(); 
         }
 
         float t = (_node->splitDistance - ray.origin()[_node->dimSplit]) / ray.direction()[_node->dimSplit];
