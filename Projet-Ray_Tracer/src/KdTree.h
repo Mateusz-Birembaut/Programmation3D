@@ -7,6 +7,7 @@
 #include "Sphere.h"
 #include "Square.h"
 
+template <typename T>
 struct KdNode {
     KdNode *left, *right;
 
@@ -15,7 +16,7 @@ struct KdNode {
     float splitDistance;
 
     bool isLeaf = false;
-    std::vector<Triangle> triangles;
+    std::vector<T> triangles;
 };
 
 
@@ -25,7 +26,7 @@ class KdTree {
 public:
 
     BoundingBox box;
-    KdNode* root;
+    KdNode<Triangle>* root;
     int maxDepth;
 
     KdTree(const Mesh * mesh, int _maxDepth) {
@@ -39,12 +40,13 @@ public:
         std::cout << "Building KdTree with " << triangles.size() << " triangles" << std::endl;
         maxDepth = _maxDepth;
         box = BoundingBox::meshBoundingBox(triangles);
-        root = new KdNode();
+        root = new KdNode<Triangle>();
         root->node_box = box;
         KdTreeBuild(box, root, triangles);
     }
 
-    void KdTreeBuild(BoundingBox _parentBox, KdNode* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
+    template <typename T>
+    void KdTreeBuild(BoundingBox _parentBox, KdNode<T>* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
         if (depth == maxDepth){ 
             _node->isLeaf = true;
             _node->triangles = _triangles;
@@ -67,8 +69,8 @@ public:
             if (triangleBox.max[_node->dimSplit] > _node->splitDistance) rightTriangles.push_back(triangle);
 
         }
-        _node->left = new KdNode();
-        _node->right = new KdNode();
+        _node->left = new KdNode<Triangle>();
+        _node->right = new KdNode<Triangle>();
 
         BoundingBox leftBox = _parentBox;
         leftBox.max[_node->dimSplit] = _node->splitDistance;
@@ -85,7 +87,8 @@ public:
 
     }
 
-    float findBestSplit(KdNode* _node, const BoundingBox& _parentBox, const std::vector<Triangle>& _triangles, int _dimSplit, int _splitsToTest) {
+    template <typename T>
+    float findBestSplit(KdNode<T>* _node, const BoundingBox& _parentBox, const std::vector<Triangle>& _triangles, int _dimSplit, int _splitsToTest) {
         Vec3 diff = _parentBox.max - _parentBox.min;
         float totalArea = BoundingBox::calculateSurfaceArea(_parentBox);
 
@@ -132,7 +135,8 @@ public:
     }
 
 
-    RayTriangleIntersection traverse(Ray const & ray, KdNode* _node, float t_start, float t_end) const {
+    template <typename T>
+    RayTriangleIntersection traverse(Ray const & ray, KdNode<T>* _node, float t_start, float t_end) const {
         if (_node->isLeaf){
             RayTriangleIntersection intersection;
             for (const Triangle& triangle : _node->triangles) {
@@ -151,8 +155,8 @@ public:
 
         float t = (_node->splitDistance - ray.origin()[_node->dimSplit]) / ray.direction()[_node->dimSplit];
 
-        KdNode* firstNode;
-        KdNode* secondNode;
+        KdNode<Triangle>* firstNode;
+        KdNode<Triangle>* secondNode;
 
         if (ray.direction()[_node->dimSplit] >= 0) {
             firstNode = _node->left;
@@ -177,8 +181,8 @@ public:
 
 
 
-
-    void drawBoundingBoxesHelper(const KdNode* node) const {
+    template <typename T>
+    void drawBoundingBoxesHelper(const KdNode<T>* node) const {
         if (!node) return;
         if (node->left == nullptr && node->right == nullptr && node->triangles.size() > 0) {
 

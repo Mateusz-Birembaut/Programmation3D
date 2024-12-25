@@ -177,8 +177,13 @@ void ray_trace_from_camera() {
     camera.apply();
     Vec3 pos , dir;
 
-    // pre process
-    
+    // pre process : cast rays random depuis sources de lumière stocker dans une position 3d
+    // (store photon : position + light power + incoming direction)
+    // utiliser kd tree pour stocker photons 
+
+    // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
+
+
     //unsigned int nsamples = 100;
     unsigned int nsamples = 10;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );

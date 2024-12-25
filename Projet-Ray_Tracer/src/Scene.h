@@ -762,7 +762,7 @@ public:
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree* kdTree = new KdTree(&m, 8);
+            KdTree* kdTree = new KdTree( &m ,8);
             if (kdTree) {
                 kdTrees.push_back(kdTree);
             } else {
