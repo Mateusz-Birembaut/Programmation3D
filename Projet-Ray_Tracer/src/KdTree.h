@@ -7,7 +7,6 @@
 #include "Sphere.h"
 #include "Square.h"
 
-template <typename T>
 struct KdNode {
     KdNode *left, *right;
 
@@ -16,40 +15,34 @@ struct KdNode {
     float splitDistance;
 
     bool isLeaf = false;
-    std::vector<T> triangles;
+    std::vector<unsigned int> indices;
 };
 
 
 class KdTree {
 
-
 public:
 
     BoundingBox box;
-    KdNode<Triangle>* root;
+    KdNode* root;
     int maxDepth;
 
-    KdTree(const Mesh * mesh, int _maxDepth) {
-        std::vector<Triangle> triangles;
-        for (const auto& meshTriangle : mesh->triangles) {
-            Vec3 v0 = mesh->vertices[meshTriangle[0]].position;
-            Vec3 v1 = mesh->vertices[meshTriangle[1]].position;
-            Vec3 v2 = mesh->vertices[meshTriangle[2]].position;
-            triangles.emplace_back(v0, v1, v2);
+    KdTree(const Mesh & mesh, int _maxDepth) {
+        std::vector<unsigned int> indices(mesh.triangles.size());
+        for (unsigned int i = 0; i < mesh.triangles.size(); ++i) {
+            indices[i] = i;
         }
-        std::cout << "Building KdTree with " << triangles.size() << " triangles" << std::endl;
         maxDepth = _maxDepth;
-        box = BoundingBox::meshBoundingBox(triangles);
-        root = new KdNode<Triangle>();
+        box = BoundingBox::meshBoundingBox(mesh, indices);
+        root = new KdNode();
         root->node_box = box;
-        KdTreeBuild(box, root, triangles);
+        KdTreeBuild( mesh ,box, root, indices);
     }
 
-    template <typename T>
-    void KdTreeBuild(BoundingBox _parentBox, KdNode<T>* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
+    void KdTreeBuild(const Mesh & _mesh ,BoundingBox& _parentBox, KdNode* _node, const std::vector<unsigned int>& _triangles_indexes, int depth = 0) {
         if (depth == maxDepth){ 
             _node->isLeaf = true;
-            _node->triangles = _triangles;
+            _node->indices = _triangles_indexes;
             _node->left = nullptr;
             _node->right = nullptr;
             return;
@@ -58,19 +51,23 @@ public:
         Vec3 diff = _parentBox.max - _parentBox.min;
         _node->dimSplit = diff.maxDimension(); 
         //_node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
-        _node->splitDistance = findBestSplit(_node, _parentBox, _triangles, _node->dimSplit, 10);
+        _node->splitDistance = findBestSplit(_mesh ,_node, _parentBox, _triangles_indexes, _node->dimSplit, 10);
 
-        std::vector<Triangle> leftTriangles;
-        std::vector<Triangle> rightTriangles;
+        std::vector<unsigned int> leftTriangles;
+        std::vector<unsigned int> rightTriangles;
 
-        for (const Triangle& triangle : _triangles){ 
+        for (const unsigned int & index : _triangles_indexes){ 
+            const MeshTriangle& meshTriangle = _mesh.triangles[index];
+            Triangle triangle(_mesh.vertices[meshTriangle[0]].position,
+                            _mesh.vertices[meshTriangle[1]].position,
+                            _mesh.vertices[meshTriangle[2]].position);
             BoundingBox triangleBox = BoundingBox::triangleBoundingBox(triangle);
-            if (triangleBox.min[_node->dimSplit] <= _node->splitDistance) leftTriangles.push_back(triangle);
-            if (triangleBox.max[_node->dimSplit] > _node->splitDistance) rightTriangles.push_back(triangle);
+            if (triangleBox.min[_node->dimSplit] <= _node->splitDistance) leftTriangles.push_back(index);
+            if (triangleBox.max[_node->dimSplit] > _node->splitDistance) rightTriangles.push_back(index);
 
         }
-        _node->left = new KdNode<Triangle>();
-        _node->right = new KdNode<Triangle>();
+        _node->left = new KdNode();
+        _node->right = new KdNode();
 
         BoundingBox leftBox = _parentBox;
         leftBox.max[_node->dimSplit] = _node->splitDistance;
@@ -81,14 +78,13 @@ public:
         _node->right->node_box = rightBox;
 
         if (depth != maxDepth){
-            KdTreeBuild(leftBox, _node->left, leftTriangles, depth + 1);
-            KdTreeBuild(rightBox, _node->right, rightTriangles, depth + 1);
+            KdTreeBuild( _mesh, leftBox, _node->left, leftTriangles, depth + 1);
+            KdTreeBuild( _mesh, rightBox, _node->right, rightTriangles, depth + 1);
         }
 
     }
 
-    template <typename T>
-    float findBestSplit(KdNode<T>* _node, const BoundingBox& _parentBox, const std::vector<Triangle>& _triangles, int _dimSplit, int _splitsToTest) {
+    float findBestSplit(const Mesh & _mesh,KdNode* _node, const BoundingBox& _parentBox, const std::vector<unsigned int >& _trianglesIndexes, int _dimSplit, int _splitsToTest) {
         Vec3 diff = _parentBox.max - _parentBox.min;
         float totalArea = BoundingBox::calculateSurfaceArea(_parentBox);
 
@@ -112,7 +108,11 @@ public:
             int numRight = 0;
 
 
-            for (const Triangle& triangle : _triangles) {
+            for (const unsigned int & index : _trianglesIndexes) {
+                const MeshTriangle& meshTriangle = _mesh.triangles[index];
+                Triangle triangle(_mesh.vertices[meshTriangle[0]].position,
+                                _mesh.vertices[meshTriangle[1]].position,
+                                _mesh.vertices[meshTriangle[2]].position);
                 BoundingBox triBox = BoundingBox::triangleBoundingBox(triangle);
                 if (triBox.min[_dimSplit] <= split) numLeft ++;
                 if (triBox.max[_dimSplit] > split) numRight ++;
@@ -135,11 +135,14 @@ public:
     }
 
 
-    template <typename T>
-    RayTriangleIntersection traverse(Ray const & ray, KdNode<T>* _node, float t_start, float t_end) const {
+    RayTriangleIntersection traverse(const Mesh & _mesh, Ray const & ray, KdNode* _node, float t_start, float t_end) const {
         if (_node->isLeaf){
             RayTriangleIntersection intersection;
-            for (const Triangle& triangle : _node->triangles) {
+            for (const unsigned int & index : _node->indices) {
+                const MeshTriangle& meshTriangle = _mesh.triangles[index];
+                Triangle triangle(_mesh.vertices[meshTriangle[0]].position,
+                                _mesh.vertices[meshTriangle[1]].position,
+                                _mesh.vertices[meshTriangle[2]].position);
                 RayTriangleIntersection tempIntersection = triangle.getIntersection(ray);
                 if (tempIntersection.intersectionExists && tempIntersection.t < t_end && tempIntersection.t > t_start) {
                     intersection = tempIntersection;
@@ -155,8 +158,8 @@ public:
 
         float t = (_node->splitDistance - ray.origin()[_node->dimSplit]) / ray.direction()[_node->dimSplit];
 
-        KdNode<Triangle>* firstNode;
-        KdNode<Triangle>* secondNode;
+        KdNode* firstNode;
+        KdNode* secondNode;
 
         if (ray.direction()[_node->dimSplit] >= 0) {
             firstNode = _node->left;
@@ -167,24 +170,22 @@ public:
         }
 
         if (t <= t_start) {
-            return traverse(ray, secondNode, t_start, t_end);
+            return traverse(_mesh , ray, secondNode, t_start, t_end);
         } else if (t >= t_end) {
-            return traverse(ray, firstNode, t_start, t_end);
+            return traverse(_mesh ,ray, firstNode, t_start, t_end);
         } else {
-            RayTriangleIntersection hit = traverse(ray, firstNode, t_start, t);
+            RayTriangleIntersection hit = traverse(_mesh ,ray, firstNode, t_start, t);
             if (hit.intersectionExists && hit.t <= t && hit.t >= 0.0001) {
                 return hit;
             }
-            return traverse(ray, secondNode, t, t_end);
+            return traverse(_mesh ,ray, secondNode, t, t_end);
         }
     }
 
 
-
-    template <typename T>
-    void drawBoundingBoxesHelper(const KdNode<T>* node) const {
+    void drawBoundingBoxesHelper(const KdNode * node) const {
         if (!node) return;
-        if (node->left == nullptr && node->right == nullptr && node->triangles.size() > 0) {
+        if (node->left == nullptr && node->right == nullptr && node->indices.size() > 0) {
 
             glColor3f(1.0f, 1.0f, 1.0f);   
 
@@ -231,14 +232,6 @@ public:
             glEnd();
 
             glColor3f(1.0f, 0.0f, 0.0f); 
-
-            glBegin(GL_TRIANGLES);
-            for (const Triangle& triangle : node->triangles) {
-                for (int i = 0; i < 3; ++i) {
-                    glVertex3f(triangle.getVertices()[i][0], triangle.getVertices()[i][1], triangle.getVertices()[i][2]);
-                }
-            }
-            glEnd();
         }
 
         if (node->left) {
@@ -247,7 +240,7 @@ public:
         if (node->right) {
             drawBoundingBoxesHelper(node->right);
         }
-    }
+    } 
 
 };
 

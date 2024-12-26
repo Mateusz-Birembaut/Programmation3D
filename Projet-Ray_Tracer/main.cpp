@@ -41,6 +41,8 @@ using namespace std;
 
 #include "src/KdTree.h"
 
+#include "src/Photons.h"
+
 
 // -------------------------------------------
 // OpenGL/GLUT application code.
@@ -180,6 +182,16 @@ void ray_trace_from_camera() {
     // pre process : cast rays random depuis sources de lumière stocker dans une position 3d
     // (store photon : position + light power + incoming direction)
     // utiliser kd tree pour stocker photons 
+
+
+/*     std::vector<Photon> photons;
+    std::cout << "photon size : " << photons.size() << std::endl;
+    std::cout << "Photon map generation started" << std::endl;
+
+    scenes[selected_scene].photonMap(photons); */
+
+    //std::cout << "Photon map completed , " <<  photons.size() << " photons generated" << std::endl;
+
 
     // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
 

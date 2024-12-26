@@ -10,6 +10,7 @@
 #include "Vec3.h"
 #include "BoundingBox.h"
 #include "KdTree.h"
+#include "Photons.h"
 
 
 #include <GL/glut.h>
@@ -62,7 +63,7 @@ class Scene {
     std::vector< Square > squares;
     std::vector< Light > lights;
 
-    std::vector<KdTree*> kdTrees;
+    std::vector<KdTree> kdTrees;
 
 public:
 
@@ -84,8 +85,8 @@ public:
             square.draw();
         }
         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
-            KdTree* kdTree = kdTrees[It];
-            kdTree->drawBoundingBoxesHelper(kdTree->root);
+            KdTree kdTree = kdTrees[It];
+            kdTree.drawBoundingBoxesHelper( kdTree.root );
         }
     }
 
@@ -143,14 +144,14 @@ public:
         } */
 
         for( unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse(meshes[i] ,ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < result.t ) {
                     result.intersectionExists = true;
@@ -205,14 +206,14 @@ public:
         }  */
 
        for (unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse( meshes[i],ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < distToLight ) {
                     return true;
@@ -291,7 +292,7 @@ public:
                     Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
                     color += rayTraceRecursive(refractedRay, NRemainingBounces - 1);
                 }           
-            }
+            }                   
             
         } else {
             return Vec3(0.53, 0.81, 0.92);
@@ -299,14 +300,14 @@ public:
         return color;
     }
 
-    Vec3 reflect(Vec3& N, Vec3& I) {
+    Vec3 reflect(const Vec3& N, const Vec3& I) {
         float cosI = -1 * Vec3::dot(N, I);
         Vec3 reflectedDirection = (I + 2 * cosI * N);
         reflectedDirection.normalize();
         return reflectedDirection;
     }
 
-    Vec3 refract(Vec3 &I, Vec3 &N,  float eta_t,  float eta_i=1.f) {
+    Vec3 refract(const Vec3 &I, const Vec3 &N,  float eta_t,  float eta_i=1.f) {
         float cosi = -std::max(-1.f, std::min(1.f, Vec3::dot(I, N)));
         Vec3 n = N;
         if (cosi<0){
@@ -368,6 +369,74 @@ public:
     Vec3 rayTrace( Ray const & rayStart ) {
         Vec3 color = rayTraceRecursive(rayStart, 3);
         return color;
+    }
+
+    Photon photonMap(std::vector<Photon> & photons) {
+        for (unsigned int i = 0; i < lights.size(); i++) {
+            Light light = lights[i];
+            if (light.type == LightType_Spherical) {
+                for (int j = 0; j < 1; j++) {
+                    Vec3 lightPos = light.pos + Vec3(dist(rng), dist(rng), dist(rng)) * light.radius;
+                    Vec3 direction = Vec3(dist(rng), dist(rng), dist(rng));
+                    direction.normalize();
+                    Ray ray = Ray(lightPos, direction);
+                    photonMapRecursive(photons, ray, 3, light);
+                }
+            }
+        }
+    }
+
+    void photonMapRecursive(std::vector<Photon> &photons, Ray const &ray, int depth, Light& light) {
+        if (depth <= 0) return;
+        RaySceneIntersection raySceneIntersection = computeIntersection(ray);
+        if (raySceneIntersection.intersectionExists) {
+            // Créer un photon à l'endroit de l'intersection
+            int index = raySceneIntersection.objectIndex;
+            Material mat;
+            Vec3 P, N, L, V;
+            float u = 0.0f, v = 0.0f;
+
+            if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
+                P = raySceneIntersection.raySphereIntersection.intersection; 
+                N = raySceneIntersection.raySphereIntersection.normal; 
+
+                mat = spheres[index].material;
+                u = raySceneIntersection.raySphereIntersection.theta ;
+                v = raySceneIntersection.raySphereIntersection.phi;
+
+            } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
+                P = raySceneIntersection.raySquareIntersection.intersection; 
+                N = raySceneIntersection.raySquareIntersection.normal; 
+
+                mat = squares[index].material;
+                u = raySceneIntersection.raySquareIntersection.u;
+                v = raySceneIntersection.raySquareIntersection.v;
+                
+            } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
+                P = raySceneIntersection.rayMeshIntersection.intersection; 
+                N = raySceneIntersection.rayMeshIntersection.normal; 
+                
+                mat = meshes[index].material;
+                
+            }
+            Photon photon;
+            photon.position = P;
+            photon.direction = ray.direction();
+            photon.power = Vec3(0, 1, 0);
+            std::cout << "Photon position : " << photon.position << std::endl;
+            std::cout << "Photon direction : " << photon.direction << std::endl;
+            std::cout << "Photon power : " << photon.power << std::endl;
+
+
+            photons.push_back(photon);
+
+            Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
+            Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
+
+            // Tracer les photons réfléchis et réfractés
+            photonMapRecursive(photons, reflectedRay, depth - 1, light);
+            photonMapRecursive(photons, refractedRay, depth - 1, light);
+        }
     }
 
     void setup_single_sphere() {
@@ -762,13 +831,8 @@ public:
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree* kdTree = new KdTree( &m ,8);
-            if (kdTree) {
-                kdTrees.push_back(kdTree);
-            } else {
-                std::cout << "Failed to build KdTree" << std::endl;
-            }
-
+            KdTree kdTree = KdTree( m ,12);
+            kdTrees.push_back(kdTree);
 
         }
 

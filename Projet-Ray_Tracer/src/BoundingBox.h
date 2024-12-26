@@ -25,14 +25,19 @@ public:
     };
 
 
-    static BoundingBox meshBoundingBox(const std::vector<Triangle>& triangles) {
+    static BoundingBox meshBoundingBox(const Mesh & mesh, const std::vector<unsigned int>& indixes) {
         BoundingBox box;
         box.min = Vec3(FLT_MAX, FLT_MAX, FLT_MAX); 
         box.max = Vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX); 
 
-        for (const Triangle& triangle : triangles) {
+        for (unsigned int index : indixes) {
+            const MeshTriangle& meshTriangle = mesh.triangles[index];
+            Triangle triangle(mesh.vertices[meshTriangle[0]].position,
+                            mesh.vertices[meshTriangle[1]].position,
+                            mesh.vertices[meshTriangle[2]].position);
+
             for (const Vec3& vertex : triangle.getVertices()) { 
-                box.min[0] = std::min(box.min[0] , vertex[0] );
+                box.min[0] = std::min(box.min[0], vertex[0]);
                 box.min[1] = std::min(box.min[1], vertex[1]);
                 box.min[2] = std::min(box.min[2], vertex[2]);
 
@@ -41,7 +46,6 @@ public:
                 box.max[2] = std::max(box.max[2], vertex[2]);
             }
         }
-
         return box;
     }
 
