@@ -140,10 +140,10 @@ public:
             RayTriangleIntersection intersection;
             for (const unsigned int & index : _node->indices) {
                 const MeshTriangle& meshTriangle = _mesh.triangles[index];
-                Triangle triangle(_mesh.vertices[meshTriangle[0]].position,
-                                _mesh.vertices[meshTriangle[1]].position,
-                                _mesh.vertices[meshTriangle[2]].position);
-                RayTriangleIntersection tempIntersection = triangle.getIntersection(ray);
+                const Vec3& v0 = _mesh.vertices[meshTriangle[0]].position;
+                const Vec3& v1 = _mesh.vertices[meshTriangle[1]].position;
+                const Vec3& v2 = _mesh.vertices[meshTriangle[2]].position;
+                RayTriangleIntersection tempIntersection = Triangle(v0, v1, v2).getIntersection(ray);
                 if (tempIntersection.intersectionExists && tempIntersection.t < t_end && tempIntersection.t > t_start) {
                     intersection = tempIntersection;
                 }
