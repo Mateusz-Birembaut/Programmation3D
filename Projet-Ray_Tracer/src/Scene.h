@@ -62,7 +62,8 @@ class Scene {
     std::vector< Square > squares;
     std::vector< Light > lights;
 
-    std::vector<KdTree*> kdTrees;
+    std::vector<KdTree> kdTrees;
+    std::vector<ppmLoader::ImageRGB> textures;
 
 public:
 
@@ -84,8 +85,8 @@ public:
             square.draw();
         }
         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
-            KdTree* kdTree = kdTrees[It];
-            kdTree->drawBoundingBoxesHelper(kdTree->root);
+            KdTree kdTree = kdTrees[It];
+            kdTree.drawBoundingBoxesHelper(kdTree.root);
         }
     }
 
@@ -143,14 +144,14 @@ public:
         } */
 
         for( unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse(ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < result.t ) {
                     result.intersectionExists = true;
@@ -205,14 +206,14 @@ public:
         }  */
 
        for (unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse(ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < distToLight ) {
                     return true;
@@ -754,21 +755,21 @@ public:
         { // Mesh
             meshes.resize( meshes.size() + 1 );
             Mesh & m = meshes[meshes.size() - 1];
-            //m.loadOFF("img/mesh/turtle.off");
-            m.loadOFF("img/mesh/nefertiti.off");
+            m.loadOFF("img/mesh/turtle.off");
+            //m.loadOFF("img/mesh/nefertiti.off");
             m.translate(Vec3(0., 0., -2.));
             m.build_arrays();
             m.material.diffuse_material = Vec3(0., 0., 1.);
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree* kdTree = new KdTree( &m ,8);
-            if (kdTree) {
-                kdTrees.push_back(kdTree);
-            } else {
-                std::cout << "Failed to build KdTree" << std::endl;
-            }
+            KdTree kdTree = KdTree( &m ,8);
+            kdTrees.push_back(kdTree);
 
+            // stocke tout dans le kdTree
+            m.triangles.clear();
+            m.triangles_array.clear();
+            m.vertices.clear();
 
         }
 
