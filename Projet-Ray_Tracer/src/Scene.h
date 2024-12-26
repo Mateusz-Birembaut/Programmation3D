@@ -10,6 +10,7 @@
 #include "Vec3.h"
 #include "BoundingBox.h"
 #include "KdTree.h"
+#include "Photon.h"
 
 
 #include <GL/glut.h>
@@ -85,8 +86,8 @@ public:
             square.draw();
         }
         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
-            KdTree kdTree = kdTrees[It];
-            kdTree.drawBoundingBoxesHelper(kdTree.root);
+            //KdTree kdTree = kdTrees[It];
+            //kdTree.drawBoundingBoxesHelper(kdTree.root, false);
         }
     }
 
@@ -300,14 +301,14 @@ public:
         return color;
     }
 
-    Vec3 reflect(Vec3& N, Vec3& I) {
+    Vec3 reflect(Vec3& N, const Vec3& I) {
         float cosI = -1 * Vec3::dot(N, I);
         Vec3 reflectedDirection = (I + 2 * cosI * N);
         reflectedDirection.normalize();
         return reflectedDirection;
     }
 
-    Vec3 refract(Vec3 &I, Vec3 &N,  float eta_t,  float eta_i=1.f) {
+    Vec3 refract(const Vec3 &I, Vec3 &N,  float eta_t,  float eta_i=1.f) {
         float cosi = -std::max(-1.f, std::min(1.f, Vec3::dot(I, N)));
         Vec3 n = N;
         if (cosi<0){
@@ -324,7 +325,7 @@ public:
         return unit_vector;
     }
 
-    Vec3 shade(Light& light, Vec3& L, Vec3& V, Vec3& N, Vec3& ray_origin, Material& mat, float& u, float& v) {
+    Vec3 shade(Light& light, Vec3& L, Vec3& V, Vec3& N, const Vec3& ray_origin, Material& mat, float& u, float& v) {
         Vec3 R = 2 * Vec3::dot(N, L) * (N) - L;
         R.normalize();
 
@@ -369,6 +370,76 @@ public:
     Vec3 rayTrace( Ray const & rayStart ) {
         Vec3 color = rayTraceRecursive(rayStart, 3);
         return color;
+    }
+
+
+    void photonMap(std::vector<Photon> & photons, unsigned int rayons) {
+        for (unsigned int i = 0; i < lights.size(); i++) {
+            Light light = lights[i];
+            if (light.type == LightType_Spherical) {
+                for (unsigned int j = 0; j < rayons; j++) {
+                    Vec3 lightPos = light.pos + Vec3(dist(rng), dist(rng), dist(rng)) * light.radius;
+                    Vec3 direction = Vec3(dist(rng), dist(rng), dist(rng));
+                    direction.normalize();
+                    Ray ray = Ray(lightPos, direction);
+                    photonMapRecursive(photons, ray, 3, light);
+                }
+            }
+        }
+    }
+
+    void photonMapRecursive(std::vector<Photon> &photons, Ray const &ray, int depth, Light& light) {
+        if (depth <= 0) return;
+        RaySceneIntersection raySceneIntersection = computeIntersection(ray);
+        if (raySceneIntersection.intersectionExists) {
+            // Créer un photon à l'endroit de l'intersection
+            int index = raySceneIntersection.objectIndex;
+            Material mat;
+            Vec3 P, N, L, V;
+            float u = 0.0f, v = 0.0f;
+
+            if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
+                P = raySceneIntersection.raySphereIntersection.intersection; 
+                N = raySceneIntersection.raySphereIntersection.normal; 
+
+                mat = spheres[index].material;
+                u = raySceneIntersection.raySphereIntersection.theta ;
+                v = raySceneIntersection.raySphereIntersection.phi;
+
+            } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
+                P = raySceneIntersection.raySquareIntersection.intersection; 
+                N = raySceneIntersection.raySquareIntersection.normal; 
+
+                mat = squares[index].material;
+                u = raySceneIntersection.raySquareIntersection.u;
+                v = raySceneIntersection.raySquareIntersection.v;
+                
+            } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
+                P = raySceneIntersection.rayMeshIntersection.intersection; 
+                N = raySceneIntersection.rayMeshIntersection.normal; 
+                
+                mat = meshes[index].material;
+                
+            }
+            L = light.pos - P; // le vecteur du point d'intersection vers la lumière
+            L.normalize();
+            Photon photon;
+            photon.position = P;
+            photon.direction = ray.direction();
+            photon.power =  shade(light, L, V, N, ray.origin(), mat, u , v) ;
+            //std::cout << "Photon position : " << photon.position << std::endl;
+            //std::cout << "Photon direction : " << photon.direction << std::endl;
+            //std::cout << "Photon power (color) : " << photon.power << std::endl; 
+
+            photons.push_back(photon);
+
+            Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
+            Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
+
+            // Tracer les photons réfléchis et réfractés
+            photonMapRecursive(photons, reflectedRay, depth - 1, light);
+            photonMapRecursive(photons, refractedRay, depth - 1, light);
+        }
     }
 
     void setup_single_sphere() {
@@ -657,6 +728,41 @@ public:
             s.material.transparency = 0.;
             s.material.index_medium = 0.;
         }
+        {
+            meshes.resize( meshes.size() + 1 );
+            Mesh & m = meshes[meshes.size() - 1];
+            //m.loadOFF("img/mesh/turtle.off");
+            m.loadOFF("img/mesh/nefertiti.off");
+            //m.loadOFF("img/mesh/bimba_3.7Mf.off");
+            m.translate(Vec3(-1., 0., -1.));
+            m.build_arrays();
+            m.material.diffuse_material = Vec3(0., 0., 1.);
+            m.material.specular_material = Vec3(1.0, 1.0, 1.0);
+            m.material.shininess = 32;
+
+            KdTree kdTree( &m ,8);
+            kdTrees.push_back(kdTree);
+
+
+        }
+
+        {
+            meshes.resize( meshes.size() + 1 );
+            Mesh & m = meshes[meshes.size() - 1];
+            //m.loadOFF("img/mesh/turtle.off");
+            m.loadOFF("img/mesh/nefertiti.off");
+            //m.loadOFF("img/mesh/bimba_3.7Mf.off");
+            m.translate(Vec3(1., 0., -1.));
+            m.build_arrays();
+            m.material.diffuse_material = Vec3(0., 0., 1.);
+            m.material.specular_material = Vec3(1.0, 1.0, 1.0);
+            m.material.shininess = 32;
+
+            KdTree kdTree( &m ,8);
+            kdTrees.push_back(kdTree);
+
+
+        }
 
     }
 
@@ -764,23 +870,27 @@ public:
             Mesh & m = meshes[meshes.size() - 1];
             //m.loadOFF("img/mesh/turtle.off");
             m.loadOFF("img/mesh/nefertiti.off");
+            //m.loadOFF("img/mesh/bimba_3.7Mf.off");
             m.translate(Vec3(0., 0., -2.));
             m.build_arrays();
             m.material.diffuse_material = Vec3(0., 0., 1.);
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree kdTree = KdTree( &m ,8);
+            KdTree kdTree( &m ,8);
             kdTrees.push_back(kdTree);
 
             // stocke tout dans le kdTree
             //peut faire ça pour avoir plus de mémoire
+
+            /*          
             m.triangles.clear();
             m.triangles_array.clear();
             m.vertices.clear(); 
             m.positions_array.clear();
             m.normalsArray.clear();
-            m.uvs_array.clear();
+            m.uvs_array.clear(); 
+            */
             
 
         }

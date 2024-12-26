@@ -11,6 +11,7 @@
 #include "Triangle.h"
 #include <cfloat>
 #include <vector>
+#include "Photon.h"
 
 
 class BoundingBox {
@@ -24,6 +25,36 @@ public:
         max = t;
     };
 
+    static BoundingBox photonMapBoundingBox(const std::vector<Photon> & photons) {
+        BoundingBox box;
+        box.min = Vec3(FLT_MAX, FLT_MAX, FLT_MAX); 
+        box.max = Vec3(-FLT_MAX, -FLT_MAX, -FLT_MAX); 
+
+        for ( Photon const & photon : photons ) {
+            box.min[0] = std::min(box.min[0], photon.position[0]);
+            box.min[1] = std::min(box.min[1], photon.position[1]);
+            box.min[2] = std::min(box.min[2], photon.position[2]);
+
+            box.max[0] = std::max(box.max[0], photon.position[0]);
+            box.max[1] = std::max(box.max[1], photon.position[1]);
+            box.max[2] = std::max(box.max[2], photon.position[2]);
+        }
+
+        return box;
+    }
+
+    static BoundingBox createSphereBox(const Vec3& center, float radius) {
+        BoundingBox box;
+        box.min = center - Vec3(radius, radius, radius);
+        box.max = center + Vec3(radius, radius, radius);
+        return box;
+    }
+
+    bool overlaps(const BoundingBox& other) const {
+        return (min[0] <= other.max[0] && max[0] >= other.min[0]) &&
+               (min[1] <= other.max[1] && max[1] >= other.min[1]) &&
+               (min[2] <= other.max[2] && max[2] >= other.min[2]);
+    }
 
     static BoundingBox meshBoundingBox(const std::vector<Triangle>& triangles) {
         BoundingBox box;

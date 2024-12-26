@@ -6,6 +6,8 @@
 #include "BoundingBox.h"
 #include "Sphere.h"
 #include "Square.h"
+#include "Photon.h"
+#include <queue>
 
 template <typename T>
 struct KdNode {
@@ -16,7 +18,7 @@ struct KdNode {
     float splitDistance;
 
     bool isLeaf = false;
-    std::vector<T> triangles;
+    std::vector<T> primitives;
 };
 
 
@@ -30,6 +32,7 @@ public:
     int maxDepth;
 
     KdTree(const Mesh * mesh, int _maxDepth) {
+        auto start = std::chrono::high_resolution_clock::now();
         std::vector<Triangle> triangles;
         for (const auto& meshTriangle : mesh->triangles) {
             Vec3 v0 = mesh->vertices[meshTriangle[0]].position;
@@ -43,13 +46,16 @@ public:
         root = new KdNode<Triangle>();
         root->node_box = box;
         KdTreeBuild(box, root, triangles);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "KdTree built in " << elapsed.count() << " seconds. \n" << std::endl;
     }
 
     template <typename T>
     void KdTreeBuild(BoundingBox _parentBox, KdNode<T>* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
         if (depth == maxDepth){ 
             _node->isLeaf = true;
-            _node->triangles = _triangles;
+            _node->primitives = _triangles;
             _node->left = nullptr;
             _node->right = nullptr;
             return;
@@ -139,7 +145,7 @@ public:
     RayTriangleIntersection traverse(Ray const & ray, KdNode<T>* _node, float t_start, float t_end) const {
         if (_node->isLeaf){
             RayTriangleIntersection intersection;
-            for (const Triangle& triangle : _node->triangles) {
+            for (const Triangle& triangle : _node->primitives) {
                 RayTriangleIntersection tempIntersection = triangle.getIntersection(ray);
                 if (tempIntersection.intersectionExists && tempIntersection.t < t_end && tempIntersection.t > t_start) {
                     intersection = tempIntersection;
@@ -180,55 +186,56 @@ public:
     }
 
 
-
     template <typename T>
-    void drawBoundingBoxesHelper(const KdNode<T>* node) const {
+    void drawBoundingBoxesHelper(const KdNode<T>* node, bool showBoxes) const {
         if (!node) return;
         if (node->left == nullptr && node->right == nullptr && node->triangles.size() > 0) {
 
-            glColor3f(1.0f, 1.0f, 1.0f);   
+            if (showBoxes) {
+                glColor3f(1.0f, 1.0f, 1.0f);   
 
-            glLineWidth(1.0f);
+                glLineWidth(1.0f);
 
-            glBegin(GL_LINES);
+                glBegin(GL_LINES);
 
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.max[1], node->node_box.min[2]);
 
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.min[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
-            glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.max[0], node->node_box.min[1], node->node_box.max[2]);
 
-            glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
-            glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.min[1], node->node_box.max[2]);
+                glVertex3f(node->node_box.min[0], node->node_box.max[1], node->node_box.max[2]);
 
-            glEnd();
+                glEnd();
+            }
 
             glColor3f(1.0f, 0.0f, 0.0f); 
 
@@ -242,14 +249,125 @@ public:
         }
 
         if (node->left) {
-            drawBoundingBoxesHelper(node->left);
+            drawBoundingBoxesHelper(node->left, showBoxes);
         }
         if (node->right) {
-            drawBoundingBoxesHelper(node->right);
+            drawBoundingBoxesHelper(node->right, showBoxes);
         }
     }
 
 };
+
+class KdTreePhotonMap {
+
+public:
+
+    BoundingBox box;
+    KdNode<Photon>* root;
+    int maxDepth;
+
+    KdTreePhotonMap(std::vector<Photon> & photons, int _maxDepth) {
+        auto start = std::chrono::high_resolution_clock::now();
+        std::cout << "KdTree Photon map with " << photons.size() << " photons" << std::endl;
+        maxDepth = _maxDepth;
+        box = BoundingBox::photonMapBoundingBox(photons);
+        root = new KdNode<Photon>();
+        root->node_box = box;
+        KdTreePhotonMapBuild(box, root, photons);
+        auto end = std::chrono::high_resolution_clock::now();
+        std::chrono::duration<double> elapsed = end - start;
+        std::cout << "KdTree Photon map built in " << elapsed.count() << " seconds. \n" << std::endl;
+    }
+
+    void KdTreePhotonMapBuild(BoundingBox _parentBox, KdNode<Photon>* _node, const std::vector<Photon>& _photons, int depth = 0){
+        if (depth == maxDepth){ 
+            _node->isLeaf = true;
+            _node->primitives = _photons;
+            _node->left = nullptr;
+            _node->right = nullptr;
+            return;
+        }
+
+        Vec3 diff = _parentBox.max - _parentBox.min;
+        _node->dimSplit = diff.maxDimension(); 
+        _node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
+        //_node->splitDistance = findBestSplit(_node, _parentBox, _triangles, _node->dimSplit, 10);
+
+        std::vector<Photon> leftPhotons;
+        std::vector<Photon> rightPhotons;
+
+        for (const Photon & photon : _photons){ 
+            if (photon.position[_node->dimSplit] <= _node->splitDistance) leftPhotons.push_back(photon);
+            if (photon.position[_node->dimSplit] > _node->splitDistance) rightPhotons.push_back(photon);
+
+        }
+        _node->left = new KdNode<Photon>();
+        _node->right = new KdNode<Photon>();
+
+        BoundingBox leftBox = _parentBox;
+        leftBox.max[_node->dimSplit] = _node->splitDistance;
+        BoundingBox rightBox = _parentBox;
+        rightBox.min[_node->dimSplit] = _node->splitDistance;
+
+        _node->left->node_box = leftBox;
+        _node->right->node_box = rightBox;
+
+        if (depth != maxDepth){
+            KdTreePhotonMapBuild(leftBox, _node->left, leftPhotons, depth + 1);
+            KdTreePhotonMapBuild(rightBox, _node->right, rightPhotons, depth + 1);
+        }
+
+    }
+
+    std::vector<Photon> findNearestPhotons(const Vec3& position, int k, float radius) {
+        std::priority_queue<PhotonDistance> nearestPhotons;
+
+        BoundingBox cercleBox = BoundingBox::createSphereBox(position, radius);
+
+        std::cout << "cercleBox min : " << cercleBox.min << std::endl;
+        std::cout << "cercleBox max : " << cercleBox.max << std::endl;
+
+        findNearestPhotonsRecursive(root, cercleBox , position, k, radius, nearestPhotons);
+
+        std::cout << "nearest photons size : " << nearestPhotons.size() << std::endl;
+
+        std::vector<Photon> result;
+        while (!nearestPhotons.empty()) {
+            result.push_back(nearestPhotons.top().photon);
+            nearestPhotons.pop();
+        }
+        return result;
+    }
+
+    void findNearestPhotonsRecursive(KdNode<Photon>* _node,const BoundingBox & cercleBox, const Vec3& _position, unsigned int _k, float _radius, std::priority_queue<PhotonDistance>& _nearestPhotons) {
+        if (!_node) return;
+        if (_node->isLeaf){
+            for (const Photon & photon : _node->primitives) {
+                float distance = (photon.position - _position).length();
+                if (distance < _radius) {
+                    if (_nearestPhotons.size() < _k) {
+                        _nearestPhotons.push(PhotonDistance(photon, distance));
+                    }else {
+                        if(distance < _nearestPhotons.top().distance){
+                            _nearestPhotons.pop();
+                            _nearestPhotons.push(PhotonDistance(photon, distance));
+                        }
+                    }
+                }
+            }
+            return;
+        }
+
+        if (_node->left->node_box.overlaps(cercleBox)){ 
+            findNearestPhotonsRecursive(_node->left, cercleBox, _position, _k, _radius, _nearestPhotons);
+        }
+
+        if (_node->right->node_box.overlaps(cercleBox)){
+            findNearestPhotonsRecursive(_node->right, cercleBox, _position, _k, _radius, _nearestPhotons);
+        }
+    }
+};
+
 
 
 

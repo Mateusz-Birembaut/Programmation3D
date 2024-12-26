@@ -177,9 +177,28 @@ void ray_trace_from_camera() {
     camera.apply();
     Vec3 pos , dir;
 
+    updateMatrices();
+    pos = cameraSpaceToWorldSpace(Vec3(0,0,0));
+
     // pre process : cast rays random depuis sources de lumière stocker dans une position 3d
     // (store photon : position + light power + incoming direction)
     // utiliser kd tree pour stocker photons 
+
+    std::vector<Photon> photons;
+
+    std::cout << "Photon map generation started" << std::endl;
+
+    scenes[selected_scene].photonMap(photons, 100000); // x rayons par source de lumière
+
+    std::cout << "photon size : " << photons.size() << std::endl;
+    
+    //std::cout << "Photon map generation completed" << std::endl;
+
+    KdTreePhotonMap kdTreePhotonMap(photons, 8);
+    
+    //std::vector<Photon> nearests = kdTreePhotonMap.findNearestPhotons(Vec3(2,0,0), 10, 0.5);
+     
+    std::cout << " kd tree box " << kdTreePhotonMap.box.min << " " << kdTreePhotonMap.box.max << std::endl;
 
     // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
 
@@ -189,9 +208,6 @@ void ray_trace_from_camera() {
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
     auto start = std::chrono::high_resolution_clock::now();
 
-
-    updateMatrices();
-    pos = cameraSpaceToWorldSpace(Vec3(0,0,0));
 
     for (int y=0; y<h; y++){
         for (int x=0; x<w; x++) {
