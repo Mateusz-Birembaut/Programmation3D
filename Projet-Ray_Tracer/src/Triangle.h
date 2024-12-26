@@ -43,6 +43,8 @@ public:
 
     std::vector<Vec3> getVertices() const {return {m_c[0], m_c[1], m_c[2]};}
 
+    Vec3 const & getNormal() const { return m_normal; }
+
     Vec3 getCenter() const { return (m_c[0] + m_c[1] + m_c[2]) / 3.f; }
 
     Vec3 const & normal() const { return m_normal; }

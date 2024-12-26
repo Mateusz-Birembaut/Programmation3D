@@ -377,6 +377,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -415,6 +416,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -459,6 +461,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -488,6 +491,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -533,6 +537,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -661,6 +666,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -673,6 +679,17 @@ public:
             light.isInCamSpace = false;
         }
 
+        {
+            textures.resize( textures.size() + 1 );
+            auto & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/damier.ppm");
+        }
+
+        {
+            textures.resize( textures.size() + 1 );
+            auto & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/s1.ppm");
+        }
 
         { //Floor
             squares.resize( squares.size() + 1 );
@@ -686,13 +703,7 @@ public:
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16;
 
-            std::cout << "Texture loading" << std::endl;
-
-            auto texture = new ppmLoader::ImageRGB;
-            ppmLoader::load_ppm(*texture, "img/textures/damier.ppm");
-            s.material.texture = texture;
-
-            std::cout << "Texture loaded" << std::endl;
+            s.material.texture = & textures[ textures.size() - 2 ];
             
         }
 
@@ -742,21 +753,17 @@ public:
             s.material.transparency = 0.;
             s.material.index_medium = 0.;
             
-            std::cout << "Texture loading" << std::endl;
 
-            auto texture = new ppmLoader::ImageRGB;
-            ppmLoader::load_ppm(*texture, "img/textures/s1.ppm");
-            s.material.texture = texture;
+            s.material.texture = & textures[ textures.size() - 1 ];
 
-            std::cout << "Texture loaded" << std::endl;
 
         }
 
         { // Mesh
             meshes.resize( meshes.size() + 1 );
             Mesh & m = meshes[meshes.size() - 1];
-            m.loadOFF("img/mesh/turtle.off");
-            //m.loadOFF("img/mesh/nefertiti.off");
+            //m.loadOFF("img/mesh/turtle.off");
+            m.loadOFF("img/mesh/nefertiti.off");
             m.translate(Vec3(0., 0., -2.));
             m.build_arrays();
             m.material.diffuse_material = Vec3(0., 0., 1.);
@@ -767,9 +774,14 @@ public:
             kdTrees.push_back(kdTree);
 
             // stocke tout dans le kdTree
+            //peut faire ça pour avoir plus de mémoire
             m.triangles.clear();
             m.triangles_array.clear();
-            m.vertices.clear();
+            m.vertices.clear(); 
+            m.positions_array.clear();
+            m.normalsArray.clear();
+            m.uvs_array.clear();
+            
 
         }
 
