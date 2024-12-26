@@ -62,7 +62,8 @@ class Scene {
     std::vector< Square > squares;
     std::vector< Light > lights;
 
-    std::vector<KdTree*> kdTrees;
+    std::vector<KdTree> kdTrees;
+    std::vector<ppmLoader::ImageRGB> textures;
 
 public:
 
@@ -84,8 +85,8 @@ public:
             square.draw();
         }
         for( unsigned int It = 0 ; It < kdTrees.size() ; ++It ) {
-            KdTree* kdTree = kdTrees[It];
-            kdTree->drawBoundingBoxesHelper(kdTree->root);
+            KdTree kdTree = kdTrees[It];
+            kdTree.drawBoundingBoxesHelper(kdTree.root);
         }
     }
 
@@ -143,14 +144,14 @@ public:
         } */
 
         for( unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse(ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < result.t ) {
                     result.intersectionExists = true;
@@ -205,14 +206,14 @@ public:
         }  */
 
        for (unsigned int i = 0; i < kdTrees.size(); i++){
-            KdTree* kdTree = kdTrees[i];
-            std::pair<float, float> interval = kdTree->root->node_box.intersect(ray);
+            KdTree kdTree = kdTrees[i];
+            std::pair<float, float> interval = kdTree.root->node_box.intersect(ray);
 
             if (interval.first == INFINITY && interval.second == INFINITY){// si le rayon ne touche pas la boite
                 continue;
             }
 
-            RayTriangleIntersection resultTriangleTemp = kdTree->traverse(ray, kdTree->root, interval.first, interval.second);
+            RayTriangleIntersection resultTriangleTemp = kdTree.traverse(ray, kdTree.root, interval.first, interval.second);
             if (resultTriangleTemp.intersectionExists){
                 if (resultTriangleTemp.t > 0.001 && resultTriangleTemp.t < distToLight ) {
                     return true;
@@ -376,6 +377,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -414,6 +416,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -458,6 +461,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -487,6 +491,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -532,6 +537,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -660,6 +666,7 @@ public:
         squares.clear();
         lights.clear();
         kdTrees.clear();
+        textures.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -672,6 +679,17 @@ public:
             light.isInCamSpace = false;
         }
 
+        {
+            textures.resize( textures.size() + 1 );
+            auto & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/damier.ppm");
+        }
+
+        {
+            textures.resize( textures.size() + 1 );
+            auto & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/s1.ppm");
+        }
 
         { //Floor
             squares.resize( squares.size() + 1 );
@@ -685,13 +703,7 @@ public:
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16;
 
-            std::cout << "Texture loading" << std::endl;
-
-            auto texture = new ppmLoader::ImageRGB;
-            ppmLoader::load_ppm(*texture, "img/textures/damier.ppm");
-            s.material.texture = texture;
-
-            std::cout << "Texture loaded" << std::endl;
+            s.material.texture = & textures[ textures.size() - 2 ];
             
         }
 
@@ -741,13 +753,9 @@ public:
             s.material.transparency = 0.;
             s.material.index_medium = 0.;
             
-            std::cout << "Texture loading" << std::endl;
 
-            auto texture = new ppmLoader::ImageRGB;
-            ppmLoader::load_ppm(*texture, "img/textures/s1.ppm");
-            s.material.texture = texture;
+            s.material.texture = & textures[ textures.size() - 1 ];
 
-            std::cout << "Texture loaded" << std::endl;
 
         }
 
@@ -762,13 +770,18 @@ public:
             m.material.specular_material = Vec3(1.0, 1.0, 1.0);
             m.material.shininess = 32;
 
-            KdTree* kdTree = new KdTree( &m ,8);
-            if (kdTree) {
-                kdTrees.push_back(kdTree);
-            } else {
-                std::cout << "Failed to build KdTree" << std::endl;
-            }
+            KdTree kdTree = KdTree( &m ,8);
+            kdTrees.push_back(kdTree);
 
+            // stocke tout dans le kdTree
+            //peut faire ça pour avoir plus de mémoire
+            m.triangles.clear();
+            m.triangles_array.clear();
+            m.vertices.clear(); 
+            m.positions_array.clear();
+            m.normalsArray.clear();
+            m.uvs_array.clear();
+            
 
         }
 
