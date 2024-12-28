@@ -15,13 +15,13 @@
 
 #include <GL/glut.h>
 
-
 #include <random>
 
 std::random_device rand_dev;
 std::mt19937 rng(rand_dev());
 static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
 static std::uniform_real_distribution<float> dist11(-1.0f, 1.0f);
+static std::uniform_real_distribution<float> dist05(-0.5f, 0.5f);
 
 enum LightType {
     LightType_Spherical,

@@ -192,26 +192,33 @@ void ray_trace_from_camera() {
     std::cout << "photons  : " << photons.size() << std::endl;
     
     
-    KdTreePhotonMap kdTreePhotonMap(photons, 10);//20);
+    KdTreePhotonMap kdTreePhotonMap(photons, 1);//20);
     photons.clear();
 
     // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
 
+    camera.focalPlaneDistance = 10.1f;
+    camera.apertureSize = 0.1f;
+
 
     //unsigned int nsamples = 100;
-    unsigned int nsamples = 10;
+    unsigned int nsamples = 100;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
-    auto start = std::chrono::high_resolution_clock::now();
-
+    auto start = std::chrono::high_resolution_clock::now();    
 
     for (int y=0; y<h; y++){
         for (int x=0; x<w; x++) {
             Vec3 sum_color(0, 0, 0);
             for (unsigned int s = 0; s < nsamples; ++s) {
-                float u = (x + dist(rng)) / w;
-                float v = (y + dist(rng)) / h;
-                screen_space_to_world_space_ray_2(u, v, pos, dir);
-                Vec3 color = scenes[selected_scene].rayTrace(kdTreePhotonMap,Ray(pos, dir));
+                float u = (x + dist05(rng)) / w;
+                float v = (y + dist05(rng)) / h;
+                //screen_space_to_world_space_ray_2(u, v, pos, dir);
+                
+                Vec3 color = scenes[selected_scene].rayTrace(
+                    kdTreePhotonMap,
+                    depth_of_field_ray(u, v, camera.focalPlaneDistance, camera.apertureSize, pos)
+                );
+
                 sum_color += color;
             }
             image[x + y * w] = sum_color / nsamples;

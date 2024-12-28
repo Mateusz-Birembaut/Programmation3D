@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <iostream>
 
+
 class Vec3;
 static inline Vec3 operator + (Vec3 const & a , Vec3 const & b);
 static inline Vec3 operator * (float a , Vec3 const & b);

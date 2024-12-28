@@ -195,6 +195,8 @@ Vec3 cameraSpaceToWorldSpace(Vec3 const & pCS) { // pCS : p in Camera Space
     mult(modelviewInverse , (GLdouble)pCS[0] , (GLdouble)pCS[1] , (GLdouble)pCS[2] , (GLdouble)1.0 , res[0] , res[1] , res[2] , res[3]);
     return Vec3( res[0] / res[3] , res[1] / res[3] , res[2] / res[3] );
 }
+
+
 Vec3 screen_space_to_worldSpace( float u , float v ) {
     // u et v sont entre 0 et 1 (0,0 est en haut a gauche de l'ecran)
     GLdouble projection[16];
@@ -215,8 +217,8 @@ Vec3 screen_space_to_worldSpace( float u , float v ) {
     mult(modelviewInverse , resInt[0] , resInt[1] , resInt[2] , resInt[3] , res[0] , res[1] , res[2] , res[3]);
     return Vec3( res[0] / res[3] , res[1] / res[3] , res[2] / res[3] );
 }
+
 void screen_space_to_world_space_ray(float u , float v , Vec3 & position , Vec3 & direction) {
-    position = cameraSpaceToWorldSpace( Vec3(0,0,0) );
     direction = screen_space_to_worldSpace(u,v) - position;
     direction.normalize();
 }
@@ -238,8 +240,7 @@ void updateMatrices() {
     glGetDoublev(GL_DEPTH_RANGE, nearAndFarPlanes);
 }
 
-void screen_space_to_world_space_ray_2(float u, float v,
-                                               Vec3 &position, Vec3 &direction)
+void screen_space_to_world_space_ray_2(float u, float v,Vec3 &position, Vec3 &direction)
 {
     GLdouble resInt[4];
     mult(projectionInverse, (GLdouble)(2.f*u - 1.f),
@@ -250,10 +251,30 @@ void screen_space_to_world_space_ray_2(float u, float v,
     mult(modelviewInverse, resInt[0], resInt[1], resInt[2], resInt[3],
          res[0], res[1], res[2], res[3]);
 
-    position = cameraSpaceToWorldSpace(Vec3(0, 0, 0)); // éventuellement précalculer ici aussi
     direction = Vec3(res[0]/res[3], res[1]/res[3], res[2]/res[3]) - position;
     direction.normalize();
 }
+
+Vec3 random_in_disk(float radius) {
+    float theta = 2 * M_PI * dist(rng);   // Angle aléatoire
+    float r = radius * sqrt(dist(rng));  // Rayon aléatoire (sqrt pour distribution uniforme)
+    return Vec3(r * cos(theta), r * sin(theta), 0); // Disque dans le plan XY
+}
+
+Ray depth_of_field_ray(float u, float v, float focal_plane_distance, float aperture_size, Vec3& position) {
+    Vec3 direction;
+    screen_space_to_world_space_ray_2(u, v, position, direction);
+
+    Vec3 focal_point = position + direction * focal_plane_distance;
+    Vec3 aperture_offset = random_in_disk(aperture_size);
+    Vec3 new_origin = position + aperture_offset;
+    Vec3 new_direction = focal_point - new_origin;
+    new_direction.normalize();
+
+    return Ray(new_origin, new_direction);
+}
+
+
 
 
 #endif // matrixUtilities_H

@@ -8,6 +8,7 @@
 #include "Square.h"
 #include "Photon.h"
 #include <queue>
+#include <chrono>
 
 template <typename T>
 struct KdNode {
