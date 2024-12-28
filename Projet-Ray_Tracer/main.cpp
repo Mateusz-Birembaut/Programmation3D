@@ -187,7 +187,7 @@ void ray_trace_from_camera() {
     std::vector<Photon> photons;
 
 
-    scenes[selected_scene].photonMap(photons, 100000); // x rayons par source de lumière
+    //scenes[selected_scene].photonMap(photons, 100000); // x rayons par source de lumière
 
     std::cout << "photons  : " << photons.size() << std::endl;
     

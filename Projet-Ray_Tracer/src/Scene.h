@@ -298,11 +298,12 @@ public:
 
                 directLight /= lights.size();
 
-                Vec3 indirectLight = Vec3(0,0,0);
-                indirectLight = estimateRadiance(P, N, photonMap, 0.2f);
+                //Vec3 indirectLight = Vec3(0,0,0);
+                //indirectLight = estimateRadiance(P, N, photonMap, 0.2f);
                 
-                color = indirectLight / 800 ; //directLight + indirectLight; // Scale indirect lighting
+                //color = indirectLight / 800 ; //directLight + indirectLight; // Scale indirect lighting
             
+                color = directLight;
             }
                  
             if( NRemainingBounces > 0 ){
@@ -843,9 +844,9 @@ public:
             s.material.transparency = 1.0;
             s.material.index_medium = 1.03;//1.03;
 
-/*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
-            s.material.n_uRepeat = 1;
-            s.material.n_vRepeat = 1; */
+            s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+            s.material.n_uRepeat = 3;
+            s.material.n_vRepeat = 3;
 
         }
 
@@ -864,8 +865,8 @@ public:
             s.material.index_medium = 0.;
 
 /*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
-            s.material.n_uRepeat = 1;
-            s.material.n_vRepeat = 1; */
+            s.material.n_uRepeat = 4;
+            s.material.n_vRepeat = 4; */
         }
         {
             meshes.resize( meshes.size() + 1 );
@@ -950,7 +951,7 @@ public:
             s.material.shininess = 16;
 
             s.material.texture = & textures[ textures.size() - 2 ];
-            s.material.t_uRepeat = 100;
+            s.material.t_uRepeat = 50;
             s.material.t_vRepeat = 100;
             
         }
