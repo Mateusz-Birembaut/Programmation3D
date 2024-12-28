@@ -18,8 +18,10 @@
 
 #include <random>
 
-static std::mt19937 rng(std::random_device{}());
+std::random_device rand_dev;
+std::mt19937 rng(rand_dev());
 static std::uniform_real_distribution<float> dist(0.0f, 1.0f);
+static std::uniform_real_distribution<float> dist11(-1.0f, 1.0f);
 
 enum LightType {
     LightType_Spherical,
@@ -65,6 +67,7 @@ class Scene {
 
     std::vector<KdTree> kdTrees;
     std::vector<ppmLoader::ImageRGB> textures;
+    std::vector<ppmLoader::ImageRGB> normalMaps;
 
 public:
 
@@ -226,7 +229,46 @@ public:
     }
 
 
-    Vec3 rayTraceRecursive( Ray ray , int NRemainingBounces) {     
+    void handleIntersection(const RaySceneIntersection& raySceneIntersection,const Ray & ray , Vec3& P, Vec3& N, Vec3& V, Material& mat, float& u, float& v, int index) {
+        if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
+            P = raySceneIntersection.raySphereIntersection.intersection; 
+            N = raySceneIntersection.raySphereIntersection.normal; 
+
+            mat = spheres[index].material;
+            u = raySceneIntersection.raySphereIntersection.theta;
+            v = raySceneIntersection.raySphereIntersection.phi;
+
+        } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
+            P = raySceneIntersection.raySquareIntersection.intersection; 
+            N = raySceneIntersection.raySquareIntersection.normal; 
+
+            mat = squares[index].material;
+            u = raySceneIntersection.raySquareIntersection.u;
+            v = raySceneIntersection.raySquareIntersection.v;
+            
+        } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
+            P = raySceneIntersection.rayMeshIntersection.intersection; 
+            N = raySceneIntersection.rayMeshIntersection.normal; 
+            
+            mat = meshes[index].material;
+        }
+
+        if( mat.texture != nullptr ) {
+            mat.diffuse_material = mat.texture->sampleTextureAsVec3(u,v, mat.t_uRepeat, mat.t_vRepeat);
+        }   
+
+        if (mat.normalMap != nullptr) {
+            updateNormal(N, mat.normalMap, u, v, mat, raySceneIntersection);
+        } 
+
+        P = P + 0.00001 * N; // decale le point d'intersection pour eviter de le reintersecter
+
+        V = ray.origin() - P; // le vecteur du point d'intersection vers l'origine du rayon
+        V.normalize();
+
+    }
+
+    Vec3 rayTraceRecursive(KdTreePhotonMap & photonMap, Ray ray , int NRemainingBounces) {     
         RaySceneIntersection raySceneIntersection = computeIntersection(ray);
         Vec3 color;
         if (raySceneIntersection.intersectionExists) {  
@@ -235,70 +277,95 @@ public:
             Vec3 P, N, L, V;
             float u = 0.0f, v = 0.0f;
 
-            if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
-                P = raySceneIntersection.raySphereIntersection.intersection; 
-                N = raySceneIntersection.raySphereIntersection.normal; 
+            handleIntersection(raySceneIntersection, ray, P, N, V, mat, u, v, index);
 
-                mat = spheres[index].material;
-                u = raySceneIntersection.raySphereIntersection.theta ;
-                v = raySceneIntersection.raySphereIntersection.phi;
-
-            } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
-                P = raySceneIntersection.raySquareIntersection.intersection; 
-                N = raySceneIntersection.raySquareIntersection.normal; 
-
-                mat = squares[index].material;
-                u = raySceneIntersection.raySquareIntersection.u;
-                v = raySceneIntersection.raySquareIntersection.v;
-                
-            } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
-                P = raySceneIntersection.rayMeshIntersection.intersection; 
-                N = raySceneIntersection.rayMeshIntersection.normal; 
-                
-                mat = meshes[index].material;
-                
-            }
-
-            P = P + 0.00001 * N; 
-
-            V = ray.origin() - P; // le vecteur du point d'intersection vers l'origine du rayon
-            V.normalize();
-
-
+            
             if(mat.type != Material_Mirror && mat.type  != Material_Glass){
             
+                Vec3 directLight(0,0,0);
                 for(Light& light : lights) {
                     L = light.pos - P; // le vecteur du point d'intersection vers la lumière
                     L.normalize();
 
-                    float unblocked_rays_percentage = traceShadowRays(light, P, N, 5);
+                    float unblocked_rays_percentage = traceShadowRays(light, P, 5);
                     if (unblocked_rays_percentage == 0){
                         continue;
                     }
                     
-
                     Vec3 color_current = shade(light, L, V, N, ray.origin(), mat, u , v);
-                    color_current *= unblocked_rays_percentage;
-                    color += color_current;
+                    directLight += color_current * unblocked_rays_percentage;
                 }
 
-                color /= lights.size();
-            }
+                directLight /= lights.size();
+
+                Vec3 indirectLight = Vec3(0,0,0);
+                indirectLight = estimateRadiance(P, N, photonMap, 0.2f);
+                
+                color = indirectLight / 800 ; //directLight + indirectLight; // Scale indirect lighting
             
+            }
+                 
             if( NRemainingBounces > 0 ){
                 if (mat.type == Material_Mirror ) {
                     Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
-                    color += rayTraceRecursive(reflectedRay, NRemainingBounces - 1);
+                    color += rayTraceRecursive(photonMap ,reflectedRay, NRemainingBounces - 1);
                 }else if ( mat.type == Material_Glass ) {
                     Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
-                    color += rayTraceRecursive(refractedRay, NRemainingBounces - 1);
+                    color += rayTraceRecursive(photonMap ,refractedRay, NRemainingBounces - 1);
                 }           
             }
+            
             
         } else {
             return Vec3(0.53, 0.81, 0.92);
         }
         return color;
+    }
+
+    Vec3 estimateRadiance(const Vec3& point, const Vec3& normal, KdTreePhotonMap& kdTreePhoton, float radius) {
+        Vec3 radiance(0,0,0);
+        int photonCount = 0;
+        float maxRadius2 = radius * radius;
+
+        std::vector<Photon> nearbyPhotons = kdTreePhoton.findNearestPhotons(point, radius);
+        
+        for(const Photon& photon : nearbyPhotons) {
+            float dist2 = (point - photon.position).length();
+            dist2 = dist2 * dist2;
+            if(dist2 < maxRadius2) {
+                float weight = 1.0f - sqrt(dist2)/radius;
+                float cosTheta = Vec3::dot(normal, photon.direction);
+                if(cosTheta > 0) {
+                    radiance += photon.power * weight * cosTheta;
+                    photonCount++;
+                }
+            }
+        }
+        
+        if(photonCount > 0) {
+            float area = M_PI * radius * radius;
+            radiance *= (1.0f / area);
+        }
+        
+        return radiance;
+    }
+
+
+    Vec3 transformToWorldSpace(const Vec3& tangentSpaceNormal, const Mat3& TBN) {
+        Vec3 worldNormal;
+        worldNormal[0] = TBN(0, 0) * tangentSpaceNormal[0] + TBN(0, 1) * tangentSpaceNormal[1] + TBN(0, 2) * tangentSpaceNormal[2];
+        worldNormal[1] = TBN(1, 0) * tangentSpaceNormal[0] + TBN(1, 1) * tangentSpaceNormal[1] + TBN(1, 2) * tangentSpaceNormal[2];
+        worldNormal[2] = TBN(2, 0) * tangentSpaceNormal[0] + TBN(2, 1) * tangentSpaceNormal[1] + TBN(2, 2) * tangentSpaceNormal[2];
+        worldNormal.normalize();
+        return worldNormal;
+    }
+
+    Mat3 computeTBN(const Vec3& tangent, const Vec3& bitangent, const Vec3& normal) {
+        return Mat3(tangent, bitangent, normal);
+    }
+
+    float sphereSurfaceArea(float radius) {
+        return 4 * M_PI * (radius * radius);
     }
 
     Vec3 reflect(Vec3& N, const Vec3& I) {
@@ -330,9 +397,7 @@ public:
         R.normalize();
 
         Vec3 ambient = mat.ambient_material;
-        if( mat.texture != nullptr ) {
-            mat.diffuse_material = mat.texture->sampleTextureAsVec3(u,v);
-        }
+
         Vec3 diffuse = mat.diffuse_material * std::max(0.0f, Vec3::dot(L, N));
 
         Vec3 specular = mat.specular_material * std::pow(std::max(0.0f, Vec3::dot(R, V)), mat.shininess);
@@ -340,7 +405,7 @@ public:
         return  (ambient + diffuse + specular) * light.material;
     }
     
-    float traceShadowRays (Light& light, Vec3& P, Vec3& N, float nbShadowRays) {
+    float traceShadowRays (Light& light, Vec3& P, float nbShadowRays) {
         int number_shadow_rays = 0;
 
         for (int i = 0; i < nbShadowRays; i++) {
@@ -367,8 +432,8 @@ public:
         return Vec3(x, y, z) + center;
     }
 
-    Vec3 rayTrace( Ray const & rayStart ) {
-        Vec3 color = rayTraceRecursive(rayStart, 3);
+    Vec3 rayTrace( KdTreePhotonMap & photonMap,Ray const & rayStart ) {
+        Vec3 color = rayTraceRecursive(photonMap ,rayStart, 3);
         return color;
     }
 
@@ -378,69 +443,63 @@ public:
             Light light = lights[i];
             if (light.type == LightType_Spherical) {
                 for (unsigned int j = 0; j < rayons; j++) {
-                    Vec3 lightPos = light.pos + Vec3(dist(rng), dist(rng), dist(rng)) * light.radius;
-                    Vec3 direction = Vec3(dist(rng), dist(rng), dist(rng));
+                    Vec3 lightPos = randomPointOnLight(light.radius, light.pos);
+                    Vec3 direction = Vec3(dist11(rng), dist11(rng), dist11(rng));
                     direction.normalize();
                     Ray ray = Ray(lightPos, direction);
-                    photonMapRecursive(photons, ray, 3, light);
+                    photonMapRecursive(photons, ray, 4, 4, light.material, light);
                 }
             }
         }
     }
 
-    void photonMapRecursive(std::vector<Photon> &photons, Ray const &ray, int depth, Light& light) {
+    void photonMapRecursive(std::vector<Photon>& photons, Ray const& ray, int maxDepth, int depth, Vec3& power, Light& light) {
         if (depth <= 0) return;
+
         RaySceneIntersection raySceneIntersection = computeIntersection(ray);
-        if (raySceneIntersection.intersectionExists) {
-            // Créer un photon à l'endroit de l'intersection
-            int index = raySceneIntersection.objectIndex;
-            Material mat;
-            Vec3 P, N, L, V;
-            float u = 0.0f, v = 0.0f;
+        if (!raySceneIntersection.intersectionExists) return;
 
-            if (raySceneIntersection.typeOfIntersectedObject == 0) { // si intersecte une sphere
-                P = raySceneIntersection.raySphereIntersection.intersection; 
-                N = raySceneIntersection.raySphereIntersection.normal; 
+        int index = raySceneIntersection.objectIndex;
+        Material mat;
+        Vec3 P, N, V;
+        float u = 0.0f, v = 0.0f;
+        handleIntersection(raySceneIntersection, ray, P, N, V, mat, u, v, index);
 
-                mat = spheres[index].material;
-                u = raySceneIntersection.raySphereIntersection.theta ;
-                v = raySceneIntersection.raySphereIntersection.phi;
-
-            } else if (raySceneIntersection.typeOfIntersectedObject == 1) { // si intersecte un carré
-                P = raySceneIntersection.raySquareIntersection.intersection; 
-                N = raySceneIntersection.raySquareIntersection.normal; 
-
-                mat = squares[index].material;
-                u = raySceneIntersection.raySquareIntersection.u;
-                v = raySceneIntersection.raySquareIntersection.v;
-                
-            } else if (raySceneIntersection.typeOfIntersectedObject == 2) { // si intersecte un mesh
-                P = raySceneIntersection.rayMeshIntersection.intersection; 
-                N = raySceneIntersection.rayMeshIntersection.normal; 
-                
-                mat = meshes[index].material;
-                
-            }
-            L = light.pos - P; // le vecteur du point d'intersection vers la lumière
-            L.normalize();
-            Photon photon;
-            photon.position = P;
-            photon.direction = ray.direction();
-            photon.power =  shade(light, L, V, N, ray.origin(), mat, u , v) ;
-            //std::cout << "Photon position : " << photon.position << std::endl;
-            //std::cout << "Photon direction : " << photon.direction << std::endl;
-            //std::cout << "Photon power (color) : " << photon.power << std::endl; 
-
+        // Store photon on ALL surfaces except perfect mirrors
+        Photon photon(P, -1 * ray.direction(), power, N, maxDepth - depth, 2.0f);
+        
+        // Apply material color to photon power
+        photon.power = photon.power * mat.diffuse_material;
+        
+        if (photon.isSignificant()) {
             photons.push_back(photon);
+        }
 
-            Ray reflectedRay =  Ray(P ,reflect(N, ray.direction())); 
-            Ray refractedRay = Ray(P ,refract(ray.direction(), N, mat.index_medium)); 
-
-            // Tracer les photons réfléchis et réfractés
-            photonMapRecursive(photons, reflectedRay, depth - 1, light);
-            photonMapRecursive(photons, refractedRay, depth - 1, light);
+        // Different bounce behaviors
+        if (mat.type == Material_Mirror) {
+            Ray reflectedRay = Ray(P, reflect(N, ray.direction()));
+            Vec3 newPower = power * 0.9f; // Less energy loss for mirrors
+            photonMapRecursive(photons, reflectedRay, maxDepth, depth - 1, newPower, light);
+        }
+        else if (mat.type == Material_Glass) {
+            Vec3 newPower = power * 0.8f;
+            Ray reflectedRay = Ray(P, reflect(N, ray.direction()));
+            Ray refractedRay = Ray(P, refract(ray.direction(), N, mat.index_medium));
+            
+            photonMapRecursive(photons, reflectedRay, maxDepth, depth - 1, newPower, light);
+            photonMapRecursive(photons, refractedRay, maxDepth, depth - 1, newPower, light);
+        }
+        else {
+            // Diffuse bounce (optional for better GI)
+            Vec3 newPower = power * 0.5f;
+            Vec3 randomDir = Vec3(dist11(rng), dist11(rng), dist11(rng));
+            randomDir.normalize();
+            if (Vec3::dot(randomDir, N) < 0) randomDir = -1 * randomDir;
+            Ray diffuseRay = Ray(P, randomDir);
+            photonMapRecursive(photons, diffuseRay, maxDepth, depth - 1, newPower, light);
         }
     }
+
 
     void setup_single_sphere() {
         meshes.clear();
@@ -449,6 +508,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
+        normalMaps.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -470,15 +530,39 @@ public:
             s.material.specular_material = Vec3( 0.2,0.2,0.2 );
             s.material.shininess = 20;
 
-            std::cout << "Texture loading" << std::endl;
-
             auto texture = new ppmLoader::ImageRGB;
             ppmLoader::load_ppm(*texture, "img/textures/damier.ppm");
             s.material.texture = texture;
 
-            std::cout << "Texture loaded" << std::endl;
+            auto normalMap = new ppmLoader::ImageRGB;
+            ppmLoader::load_ppm(*normalMap, "img/normalMaps/n1.ppm");
+            s.material.normalMap = normalMap;
 
         }
+    }
+
+    void updateNormal(Vec3 & N, ppmLoader::ImageRGB * normalMap, float u, float v, Material & mat, const RaySceneIntersection & raySceneIntersection) {
+        Vec3 tangentSpaceNormal = normalMap->sampleNormMapAsVec3(u, v, mat.n_uRepeat, mat.n_vRepeat);
+        tangentSpaceNormal = 2 * tangentSpaceNormal - Vec3(1, 1, 1); // Conversion de [0,1] à [-1,1]
+        tangentSpaceNormal.normalize();                               
+                              
+        Vec3 tangent;
+        if( raySceneIntersection.typeOfIntersectedObject == 0){
+            tangent = Vec3(-sin(v), 0, cos(u));
+            tangent.normalize();
+        }else if (raySceneIntersection.typeOfIntersectedObject == 1){
+            tangent = Vec3(0.0f, 1.0f, 0.0f);
+        }
+
+        Vec3 bitangent = Vec3::cross(N, tangent);
+        bitangent.normalize();
+
+        // Calcul de la matrice TBN
+        Mat3 TBN = computeTBN(tangent, bitangent, N);
+
+        // Transformation vers l'espace monde
+        Vec3 worldNormal = transformToWorldSpace(tangentSpaceNormal, TBN); 
+        N = worldNormal; // Remplace la normale géométrique par la normale de la normal map
     }
 
     void setup_2_spheres() {
@@ -488,6 +572,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
+        normalMaps.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -533,6 +618,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
+        normalMaps.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -544,6 +630,18 @@ public:
             light.material = Vec3(1,1,1);
             light.isInCamSpace = false;
         }
+        
+        {
+            textures.resize( textures.size() + 1 );
+            ppmLoader::ImageRGB & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/s6.ppm");
+        }
+
+        {
+            normalMaps.resize( normalMaps.size() + 1 );
+            ppmLoader::ImageRGB & normalMap = normalMaps[normalMaps.size() - 1];
+            ppmLoader::load_ppm(normalMap, "img/normalMaps/n4.ppm");
+        }
 
         {
             squares.resize( squares.size() + 1 );
@@ -553,6 +651,10 @@ public:
             s.material.diffuse_material = Vec3( 0.8,0.8,0.8 );
             s.material.specular_material = Vec3( 0.8,0.8,0.8 );
             s.material.shininess = 20;
+
+            s.material.texture = &textures[textures.size() - 1];
+            s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+
         }
     }
 
@@ -563,7 +665,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
-
+        normalMaps.clear();
         {
             lights.resize( lights.size() + 1 );
             Light & light = lights[lights.size() - 1];
@@ -609,6 +711,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
+        normalMaps.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -619,6 +722,24 @@ public:
             light.type = LightType_Spherical;
             light.material = Vec3(1,1,1);
             light.isInCamSpace = false;
+        }
+
+        {
+            textures.resize( textures.size() + 1 );
+            ppmLoader::ImageRGB & texture = textures[textures.size() - 1];
+            ppmLoader::load_ppm(texture, "img/textures/s6.ppm");
+        }
+
+        {
+            normalMaps.resize( normalMaps.size() + 1 );
+            ppmLoader::ImageRGB & normalMap = normalMaps[normalMaps.size() - 1];
+            ppmLoader::load_ppm(normalMap, "img/normalMaps/n2.ppm");
+        }
+
+        {
+            normalMaps.resize( normalMaps.size() + 1 );
+            ppmLoader::ImageRGB & normalMap = normalMaps[normalMaps.size() - 1];
+            ppmLoader::load_ppm(normalMap, "img/normalMaps/n1.ppm");
         }
 
         { //Back Wall
@@ -645,6 +766,7 @@ public:
             s.material.diffuse_material = Vec3( 1.,0.,0. );
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16;
+
         }
 
         { //Right Wall
@@ -658,6 +780,8 @@ public:
             s.material.diffuse_material = Vec3( 0.0,1.0,0.0 );
             s.material.specular_material = Vec3( 1.,1.,1. );
             s.material.shininess = 16;
+
+
         }
 
         { //Floor
@@ -671,6 +795,11 @@ public:
             s.material.diffuse_material = Vec3( 1.0,1.0,0.5 );
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16;
+
+            //s.material.texture = &textures[textures.size() - 1];
+/*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+            s.material.n_uRepeat = 1;
+            s.material.n_vRepeat = 1; */
         }
 
         { //Ceiling
@@ -704,6 +833,7 @@ public:
             spheres.resize( spheres.size() + 1 );
             Sphere & s = spheres[spheres.size() - 1];
             s.m_center = Vec3(1.0, -1.25, 0.5);
+            //s.m_center = Vec3(0.0, 0., 0.5);
             s.m_radius = 0.75f;
             s.build_arrays();
             s.material.type = Material_Glass;
@@ -711,7 +841,12 @@ public:
             s.material.specular_material = Vec3( 1.,1.,1. );
             s.material.shininess = 16;
             s.material.transparency = 1.0;
-            s.material.index_medium = 1.03;
+            s.material.index_medium = 1.03;//1.03;
+
+/*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+            s.material.n_uRepeat = 1;
+            s.material.n_vRepeat = 1; */
+
         }
 
 
@@ -727,6 +862,10 @@ public:
             s.material.shininess = 16;
             s.material.transparency = 0.;
             s.material.index_medium = 0.;
+
+/*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+            s.material.n_uRepeat = 1;
+            s.material.n_vRepeat = 1; */
         }
         {
             meshes.resize( meshes.size() + 1 );
@@ -773,6 +912,7 @@ public:
         lights.clear();
         kdTrees.clear();
         textures.clear();
+        normalMaps.clear();
 
         {
             lights.resize( lights.size() + 1 );
@@ -810,6 +950,8 @@ public:
             s.material.shininess = 16;
 
             s.material.texture = & textures[ textures.size() - 2 ];
+            s.material.t_uRepeat = 100;
+            s.material.t_vRepeat = 100;
             
         }
 
@@ -882,7 +1024,6 @@ public:
 
             // stocke tout dans le kdTree
             //peut faire ça pour avoir plus de mémoire
-
             /*          
             m.triangles.clear();
             m.triangles_array.clear();

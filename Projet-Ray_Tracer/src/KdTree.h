@@ -53,7 +53,7 @@ public:
 
     template <typename T>
     void KdTreeBuild(BoundingBox _parentBox, KdNode<T>* _node, const std::vector<Triangle>& _triangles, int depth = 0) {
-        if (depth == maxDepth){ 
+        if (depth == maxDepth || _triangles.size() <= 1) { 
             _node->isLeaf = true;
             _node->primitives = _triangles;
             _node->left = nullptr;
@@ -279,8 +279,8 @@ public:
         std::cout << "KdTree Photon map built in " << elapsed.count() << " seconds. \n" << std::endl;
     }
 
-    void KdTreePhotonMapBuild(BoundingBox _parentBox, KdNode<Photon>* _node, const std::vector<Photon>& _photons, int depth = 0){
-        if (depth == maxDepth){ 
+    void KdTreePhotonMapBuild(BoundingBox _parentBox, KdNode<Photon>* _node, std::vector<Photon>& _photons, int depth = 0){
+        if (depth == maxDepth || _photons.size() <= 1){ 
             _node->isLeaf = true;
             _node->primitives = _photons;
             _node->left = nullptr;
@@ -290,8 +290,8 @@ public:
 
         Vec3 diff = _parentBox.max - _parentBox.min;
         _node->dimSplit = diff.maxDimension(); 
-        _node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
-        //_node->splitDistance = findBestSplit(_node, _parentBox, _triangles, _node->dimSplit, 10);
+        //_node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
+        _node->splitDistance = findMedian(_photons, _node->dimSplit);
 
         std::vector<Photon> leftPhotons;
         std::vector<Photon> rightPhotons;
@@ -301,6 +301,7 @@ public:
             if (photon.position[_node->dimSplit] > _node->splitDistance) rightPhotons.push_back(photon);
 
         }
+        
         _node->left = new KdNode<Photon>();
         _node->right = new KdNode<Photon>();
 
@@ -319,54 +320,85 @@ public:
 
     }
 
-    std::vector<Photon> findNearestPhotons(const Vec3& position, int k, float radius) {
-        std::priority_queue<PhotonDistance> nearestPhotons;
+    std::vector<Photon> findNearestPhotons(const Vec3& position, float radius) {
+        std::vector<Photon> result;
 
         BoundingBox cercleBox = BoundingBox::createSphereBox(position, radius);
 
-        std::cout << "cercleBox min : " << cercleBox.min << std::endl;
-        std::cout << "cercleBox max : " << cercleBox.max << std::endl;
+        findNearestPhotonsRecursive(root, cercleBox , position, radius, result);
 
-        findNearestPhotonsRecursive(root, cercleBox , position, k, radius, nearestPhotons);
-
-        std::cout << "nearest photons size : " << nearestPhotons.size() << std::endl;
-
-        std::vector<Photon> result;
-        while (!nearestPhotons.empty()) {
-            result.push_back(nearestPhotons.top().photon);
-            nearestPhotons.pop();
-        }
         return result;
     }
 
-    void findNearestPhotonsRecursive(KdNode<Photon>* _node,const BoundingBox & cercleBox, const Vec3& _position, unsigned int _k, float _radius, std::priority_queue<PhotonDistance>& _nearestPhotons) {
+    void findNearestPhotonsRecursive(KdNode<Photon>* _node,const BoundingBox & cercleBox, const Vec3& _position, float _radius, std::vector<Photon>& _nearestPhotons) {
         if (!_node) return;
         if (_node->isLeaf){
             for (const Photon & photon : _node->primitives) {
                 float distance = (photon.position - _position).length();
                 if (distance < _radius) {
-                    if (_nearestPhotons.size() < _k) {
-                        _nearestPhotons.push(PhotonDistance(photon, distance));
-                    }else {
-                        if(distance < _nearestPhotons.top().distance){
-                            _nearestPhotons.pop();
-                            _nearestPhotons.push(PhotonDistance(photon, distance));
-                        }
-                    }
+                    _nearestPhotons.push_back(photon);
                 }
             }
             return;
         }
 
         if (_node->left->node_box.overlaps(cercleBox)){ 
-            findNearestPhotonsRecursive(_node->left, cercleBox, _position, _k, _radius, _nearestPhotons);
+            findNearestPhotonsRecursive(_node->left, cercleBox, _position, _radius, _nearestPhotons);
         }
 
         if (_node->right->node_box.overlaps(cercleBox)){
-            findNearestPhotonsRecursive(_node->right, cercleBox, _position, _k, _radius, _nearestPhotons);
+            findNearestPhotonsRecursive(_node->right, cercleBox, _position, _radius, _nearestPhotons);
         }
     }
+
+
+    float findMedian(std::vector<Photon>& photons, int dimSplit) {
+        size_t n = photons.size();
+        if (n == 0) return 0.0f;
+
+        std::nth_element(photons.begin(), photons.begin() + n / 2, photons.end(),
+                        [dimSplit](const Photon& a, const Photon& b) {
+                            return a.position[dimSplit] < b.position[dimSplit];
+                        });
+
+        return photons[n / 2].position[dimSplit];
+    }
+
 };
+
+
+
+
+/*     void findNearestPhotonsRecursive(KdNode<Photon>* _node, const Vec3& _position, unsigned int _k, std::priority_queue<PhotonDistance>& _nearestPhotons) {
+        if (!_node) return;
+
+        if (_node->isLeaf) {
+            for (const Photon & photon : _node->primitives) {
+                float distance = (photon.position - _position).length();
+                if (_nearestPhotons.size() < _k) {
+                    _nearestPhotons.push(PhotonDistance(photon, distance));
+                } else {
+                    if (distance < _nearestPhotons.top().distance) {
+                        _nearestPhotons.pop();
+                        _nearestPhotons.push(PhotonDistance(photon, distance));
+                    }
+                }
+            }
+            return;
+        }
+
+        int splitDim = _node->dimSplit;
+        KdNode<Photon>* nearNode = _node->left;
+        KdNode<Photon>* farNode = _node->right;
+
+        if (_position[splitDim] > _node->splitDistance) {
+            findNearestPhotonsRecursive(nearNode, _position, _k, _nearestPhotons);
+        }
+
+        if (farNode && (_nearestPhotons.size() < _k || std::abs(_position[splitDim] - _node->splitDistance) < _nearestPhotons.top().distance)) {
+            findNearestPhotonsRecursive(farNode, _position, _k, _nearestPhotons);
+        }
+    } */
 
 
 

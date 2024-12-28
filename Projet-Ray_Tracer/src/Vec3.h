@@ -169,6 +169,12 @@ public:
                 (*this)(i, j) = m(i, j);
     }
 
+    Mat3(const Vec3& col1, const Vec3& col2, const Vec3& col3) {
+        vals[0] = col1[0]; vals[1] = col1[1]; vals[2] = col1[2];
+        vals[3] = col2[0]; vals[4] = col2[1]; vals[5] = col2[2];
+        vals[6] = col3[0]; vals[7] = col3[1]; vals[8] = col3[2];
+    }
+
     // Multiplication de matrice avec un Vec3 : m.p
     //--> application d'un matrice de rotation à un point ou un vecteur
     Vec3 operator*(const Vec3 &p) {

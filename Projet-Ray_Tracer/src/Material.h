@@ -26,6 +26,13 @@ struct Material {
     MaterialType type;
 
     ppmLoader::ImageRGB * texture;
+    float t_uRepeat;
+    float t_vRepeat;
+
+    ppmLoader::ImageRGB * normalMap;
+    float n_uRepeat;
+    float n_vRepeat;
+
 
     Material() {
         type = Material_Diffuse_Blinn_Phong;
@@ -33,7 +40,13 @@ struct Material {
         index_medium = 1.0;
         ambient_material = Vec3(0., 0., 0.);
         texture = nullptr;
+        normalMap = nullptr;
         shininess = 0.;
+        n_uRepeat = 1.;
+        n_vRepeat = 1.; 
+        t_uRepeat = 1.;
+        t_vRepeat = 1.; 
+        
     }
 };
 

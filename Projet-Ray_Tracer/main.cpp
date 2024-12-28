@@ -186,19 +186,14 @@ void ray_trace_from_camera() {
 
     std::vector<Photon> photons;
 
-    std::cout << "Photon map generation started" << std::endl;
 
     scenes[selected_scene].photonMap(photons, 100000); // x rayons par source de lumière
 
-    std::cout << "photon size : " << photons.size() << std::endl;
+    std::cout << "photons  : " << photons.size() << std::endl;
     
-    //std::cout << "Photon map generation completed" << std::endl;
-
-    KdTreePhotonMap kdTreePhotonMap(photons, 8);
     
-    //std::vector<Photon> nearests = kdTreePhotonMap.findNearestPhotons(Vec3(2,0,0), 10, 0.5);
-     
-    std::cout << " kd tree box " << kdTreePhotonMap.box.min << " " << kdTreePhotonMap.box.max << std::endl;
+    KdTreePhotonMap kdTreePhotonMap(photons, 10);//20);
+    photons.clear();
 
     // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
 
@@ -216,7 +211,7 @@ void ray_trace_from_camera() {
                 float u = (x + dist(rng)) / w;
                 float v = (y + dist(rng)) / h;
                 screen_space_to_world_space_ray_2(u, v, pos, dir);
-                Vec3 color = scenes[selected_scene].rayTrace(Ray(pos, dir));
+                Vec3 color = scenes[selected_scene].rayTrace(kdTreePhotonMap,Ray(pos, dir));
                 sum_color += color;
             }
             image[x + y * w] = sum_color / nsamples;
@@ -241,6 +236,11 @@ void ray_trace_from_camera() {
         f << (int)(255.f*std::min<float>(1.f,image[i][0])) << " " << (int)(255.f*std::min<float>(1.f,image[i][1])) << " " << (int)(255.f*std::min<float>(1.f,image[i][2])) << " ";
     f << std::endl;
     f.close();
+
+    char command[100];
+    sprintf(command, "display rendu.ppm");
+    system(command);
+
 }
 
 
