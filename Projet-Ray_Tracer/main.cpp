@@ -152,7 +152,11 @@ void addSpheresUI(Scene & scene) {
                 scene.updateSphere(i);
             if (ImGui::InputFloat3("Center", &sphere.m_center[0]))
                 scene.updateSphere(i);
-            if (sphere.material.texture != nullptr){ 
+            if (sphere.material.type == Material_Glass){
+                ImGui::InputFloat("Index of Refraction", &sphere.material.index_medium);
+            }
+            
+/*             if (sphere.material.texture != nullptr){ 
                 if (ImGui::CollapsingHeader("Texture Settings")) {
                     ImGui::Text("Texture : %s", sphere.material.texture->name.c_str());
                     ImGui::InputFloat("Repeat x ", &sphere.material.t_uRepeat);
@@ -165,7 +169,7 @@ void addSpheresUI(Scene & scene) {
                     ImGui::InputFloat("Repeat x ", &sphere.material.n_uRepeat);
                     ImGui::InputFloat("Repeat y ", &sphere.material.n_vRepeat);
                 }
-            }
+            } */
         }
         
         ImGui::PopID();
@@ -183,10 +187,12 @@ void displayImGuiUI() {
     ImGui::SliderInt("Scene", &temp_scene, 0, static_cast<int>(scenes.size() - 1));
     selected_scene = static_cast<unsigned int>(temp_scene);
 
-    Scene & scene = scenes[selected_scene];
+    ImGui::InputInt("Samples per pixel", &g_samplesPerPixel);
+    ImGui::InputInt("Shadow Rays per sample", &g_shadowRays);
+    ImGui::InputInt("Max Ray Bounces", &g_rayMaxBounces);
 
     ImGui::Text("Objects dans la scene :");
-
+    Scene & scene = scenes[selected_scene];
     addSpheresUI(scene);
 
 
@@ -203,8 +209,10 @@ void displayImGuiUI() {
     if (g_usePhotonMapping) {
         if (ImGui::CollapsingHeader("Photon Mapping Settings")) {
             ImGui::InputInt("Photon Count", &g_photonCount, 0, 1000000);
+            ImGui::SliderFloat("Search Radius", &g_searchRadius, 0.0f, 1.0f);
+            ImGui::InputInt("Max Photon Bounces", &g_photonMaxBounces);
         }
-        ImGui::SliderFloat("Search Radius", &g_searchRadius, 0.0f, 1.0f);
+
     }
 
 
@@ -269,13 +277,16 @@ void idle () {
     glutPostRedisplay ();
 }
 
-void ray_trace_block(int start_x, int end_x, int start_y, int end_y, int w, int h, unsigned int nsamples, std::vector<Vec3>& image, KdTreePhotonMap& kdTreePhotonMap, Vec3 pos) {
+
+void ray_trace_block(int start_x, int end_x, int start_y, int end_y, float w, float h, unsigned int nsamples, std::vector<Vec3>& image, KdTreePhotonMap& kdTreePhotonMap, Vec3 pos) {
+    float inv_w = 1.0f / w;
+    float inv_h = 1.0f / h;
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
             Vec3 sum_color(0, 0, 0);
             for (unsigned int s = 0; s < nsamples; ++s) {
-                float u = (x + dist05(rng)) / w;
-                float v = (y + dist05(rng)) / h;
+                float u = (x + dist05(rng)) * inv_w;
+                float v = (y + dist05(rng)) * inv_h;
                 Vec3 color = scenes[selected_scene].rayTrace(
                     kdTreePhotonMap,
                     depth_of_field_ray(u, v, camera.focalPlaneDistance, camera.apertureSize, pos)

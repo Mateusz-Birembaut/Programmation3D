@@ -264,7 +264,7 @@ public:
 
     }
 
-    Vec3 rayTraceRecursive(const KdTreePhotonMap & photonMap, Ray ray , int NRemainingBounces) {     
+    Vec3 rayTraceRecursive(const KdTreePhotonMap & photonMap, const Ray & ray , int NRemainingBounces) {     
         RaySceneIntersection raySceneIntersection = computeIntersection(ray);
         Vec3 color;
         if (raySceneIntersection.intersectionExists) {  
@@ -467,8 +467,8 @@ public:
         return Vec3(x, y, z) + center;
     }
 
-    Vec3 rayTrace( KdTreePhotonMap & photonMap,Ray const & rayStart ) {
-        Vec3 color = rayTraceRecursive(photonMap ,rayStart, 3);
+    Vec3 rayTrace( const KdTreePhotonMap & photonMap,const Ray & rayStart ) {
+        Vec3 color = rayTraceRecursive(photonMap ,rayStart, g_rayMaxBounces);
         return color;
     }
 
@@ -489,13 +489,13 @@ public:
                     Vec3 direction = randomHemisphereDirection(normal);
                     direction.normalize();
                     Ray ray = Ray(lightPos, direction);
-                    photonMapRecursive(_photons, ray, 5, 0, photonPower, light);
+                    photonMapRecursive(_photons, ray, g_photonMaxBounces, 0, photonPower, light);
                 }
             }
         }
     }
 
-    void photonMapRecursive(std::vector<Photon>& photons, const Ray & ray, int maxDepth, int depth, const Vec3& power, const Light& light) {
+    void photonMapRecursive(std::vector<Photon>& photons, const Ray & ray, int& maxDepth, int depth, const Vec3& power, const Light& light) {
         if (depth >= maxDepth) return;
         RaySceneIntersection raySceneIntersection = computeIntersection(ray);
         if (!raySceneIntersection.intersectionExists) return;
