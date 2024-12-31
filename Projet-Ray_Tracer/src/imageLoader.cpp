@@ -18,12 +18,12 @@ void eat_comment(ifstream &f)
 }
 
 
-void load_ppm(ImageRGB &img, const string &name)
+void load_ppm(ImageRGB &img, const string &_name)
 {
-    ifstream f(name.c_str(), ios::binary);
+    ifstream f(_name.c_str(), ios::binary);
     if (f.fail())
     {
-        cout << "Could not open file: " << name << endl;
+        cout << "Could not open file: " << _name << endl;
         return;
     }
 
@@ -97,9 +97,24 @@ void load_ppm(ImageRGB &img, const string &name)
             img.data[i].b = v;
         }
     }
+    
+    setName(img,_name);
 
     // close file
     f.close();
+}
+
+void setName(ImageRGB & _img ,const string & _name){
+    size_t lastSlash = _name.find_last_of("/\\");
+    size_t lastDot = _name.find_last_of('.');
+    std::string baseName;
+    if (lastDot == std::string::npos) {
+        baseName = (lastSlash == std::string::npos) ? _name : _name.substr(lastSlash + 1);
+    } else {
+        baseName = (lastSlash == std::string::npos) ? _name.substr(0, lastDot) : _name.substr(lastSlash + 1, lastDot - lastSlash - 1);
+    }
+    baseName.copy(&_img.name[0], baseName.size());
+    _img.name[baseName.size()] = '\0'; 
 }
 
 

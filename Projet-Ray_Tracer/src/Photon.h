@@ -7,18 +7,15 @@ struct Photon {
     Vec3 position;      // Position of the photon
     Vec3 direction;     // Direction from which the photon came
     Vec3 power;         // Power (color) of the photon
-    Vec3 normal;        // Surface normal at hit point
     int bounceCount;    // Number of bounces from light source
     float flags;        // Bit flags for photon type (caustic, global, etc.)
 
-    Photon(const Vec3& pos, const Vec3& dir, const Vec3& pow, const Vec3& norm = Vec3(0,0,0), 
-           int bounce = 0, float f = 0.0f)
-        : position(pos), direction(dir), power(pow), normal(norm), 
+    Photon(const Vec3& pos, const Vec3& dir, const Vec3& pow, int bounce = 0, float f = 0.0f)
+        : position(pos), direction(dir), power(pow), 
           bounceCount(bounce), flags(f) {}
 
     Photon() 
-        : position(Vec3(0,0,0)), direction(Vec3(0,0,0)), power(Vec3(0,0,0)), 
-          normal(Vec3(0,0,0)), bounceCount(0), flags(0.0f) {}
+        : position(Vec3(0,0,0)), direction(Vec3(0,0,0)), power(Vec3(0,0,0)), bounceCount(0), flags(0.0f) {}
 
     /*
     Photon(const Vec3& pos, const Vec3& dir, const Vec3& pow)

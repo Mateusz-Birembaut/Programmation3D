@@ -303,6 +303,7 @@ public:
 
         }
         
+        
         _node->left = new KdNode<Photon>();
         _node->right = new KdNode<Photon>();
 
@@ -321,7 +322,7 @@ public:
 
     }
 
-    std::vector<Photon> findNearestPhotons(const Vec3& position, float radius) {
+    std::vector<Photon> findNearestPhotons(const Vec3& position, float radius) const {
         std::vector<Photon> result;
 
         BoundingBox cercleBox = BoundingBox::createSphereBox(position, radius);
@@ -331,7 +332,7 @@ public:
         return result;
     }
 
-    void findNearestPhotonsRecursive(KdNode<Photon>* _node,const BoundingBox & cercleBox, const Vec3& _position, float _radius, std::vector<Photon>& _nearestPhotons) {
+    void findNearestPhotonsRecursive(KdNode<Photon>* _node,const BoundingBox & cercleBox, const Vec3& _position, float _radius, std::vector<Photon>& _nearestPhotons) const {
         if (!_node) return;
         if (_node->isLeaf){
             for (const Photon & photon : _node->primitives) {

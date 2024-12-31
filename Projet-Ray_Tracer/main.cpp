@@ -14,6 +14,11 @@
 // purpose.
 // -------------------------------------------
 
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_glut.h"
+#include "imgui/imgui_impl_opengl3.h"
+
+#include <GL/glut.h>
 
 #include <iostream>
 #include <fstream>
@@ -23,29 +28,23 @@
 #include <cstdlib>
 #include <thread>
 #include <execution>
-
+#include <chrono>
 #include <algorithm>
+
+#include "src/Scene.h"
 #include "src/Vec3.h"
 #include "src/Camera.h"
-#include "src/Scene.h"
-#include <GL/glut.h>
-#include <chrono>
-
 #include "src/matrixUtilities.h"
+#include "src/imageLoader.h"
+#include "src/Material.h"
+#include "src/KdTree.h"
+#include "src/Globals.h"
 
 using namespace std;
-
-#include "src/imageLoader.h"
-
-#include "src/Material.h"
-
-#include "src/KdTree.h"
-
 
 // -------------------------------------------
 // OpenGL/GLUT application code.
 // -------------------------------------------
-
 static GLint window;
 static unsigned int SCREENWIDTH = 480;
 static unsigned int SCREENHEIGHT = 480;
@@ -87,6 +86,18 @@ void usage () {
 
 
 // ------------------------------------
+
+void initImGui() {
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.DisplaySize = ImVec2((float)SCREENWIDTH, (float)SCREENHEIGHT);
+    ImGui::StyleColorsDark();
+    ImGui_ImplGLUT_Init();
+    ImGui_ImplOpenGL3_Init("#version 330");
+}
+
+
 void initLight () {
     GLfloat light_position[4] = {0.0, 1.5, 0.0, 1.0};
     GLfloat color[4] = { 1.0, 1.0, 1.0, 1.0};
@@ -104,6 +115,7 @@ void init () {
     camera.resize (SCREENWIDTH, SCREENHEIGHT);
     initLight ();
     //glCullFace (GL_BACK);
+    initImGui();
     glDisable (GL_CULL_FACE);
     glDepthFunc (GL_LESS);
     glEnable (GL_DEPTH_TEST);
@@ -126,9 +138,87 @@ void clear () {
 // functions for alternative rendering.
 // ------------------------------------
 
+void addSpheresUI(Scene & scene) {
+    std::vector<Sphere>& spheres = scene.getSpheres();
+
+    for (size_t i = 0; i < spheres.size(); i++){
+        ImGui::PushID(static_cast<int>(i));
+        if (ImGui::CollapsingHeader("Sphere ", i)) {
+            Sphere & sphere = spheres[i];
+            if (ImGui::SliderFloat("Radius", &sphere.m_radius, 0.0f, 10.0f))
+                scene.updateSphere(i);
+            if (ImGui::InputFloat3("Center", &sphere.m_center[0]))
+                scene.updateSphere(i);
+            if (sphere.material.texture != nullptr){ 
+                if (ImGui::CollapsingHeader("Texture Settings")) {
+                    ImGui::Text("Texture : %s", sphere.material.texture->name.c_str());
+                    ImGui::InputFloat("Repeat x ", &sphere.material.t_uRepeat);
+                    ImGui::InputFloat("Repeat y ", &sphere.material.t_vRepeat);
+                }
+            }
+            if (sphere.material.normalMap != nullptr){ 
+                if (ImGui::CollapsingHeader("Normal Map Settings")) {
+                    ImGui::Text("Normal Map : %s", sphere.material.normalMap->name.c_str());
+                    ImGui::InputFloat("Repeat x ", &sphere.material.n_uRepeat);
+                    ImGui::InputFloat("Repeat y ", &sphere.material.n_vRepeat);
+                }
+            }
+        }
+        
+        ImGui::PopID();
+        ImGui::Separator();
+    }
+}
+
+void displayImGuiUI() {
+    ImGui::Begin("Raytracer");
+
+    ImGui::Text("Press 'r' to ray trace");
+    ImGui::Separator(); 
+
+    int temp_scene = static_cast<int>(selected_scene);
+    ImGui::SliderInt("Scene", &temp_scene, 0, static_cast<int>(scenes.size() - 1));
+    selected_scene = static_cast<unsigned int>(temp_scene);
+
+    Scene & scene = scenes[selected_scene];
+
+    ImGui::Text("Objects dans la scene :");
+
+    addSpheresUI(scene);
+
+
+    ImGui::Separator();
+
+    if (ImGui::CollapsingHeader("Camera Settings")) {
+        ImGui::InputFloat("Focal Plane Distance", &g_camera_focalPlaneDistance);
+        ImGui::InputFloat("Aperture Size", &g_camera_apertureSize);
+    }
+
+    ImGui::Separator();
+
+    ImGui::Checkbox("Use Photon Mapping", &g_usePhotonMapping);
+    if (g_usePhotonMapping) {
+        if (ImGui::CollapsingHeader("Photon Mapping Settings")) {
+            ImGui::InputInt("Photon Count", &g_photonCount, 0, 1000000);
+        }
+        ImGui::SliderFloat("Search Radius", &g_searchRadius, 0.0f, 1.0f);
+    }
+
+
+    ImGui::End();
+
+    ImGui::Render();
+    ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+}
+
 
 void draw () {
+    ImGui_ImplOpenGL3_NewFrame();
+    ImGui_ImplGLUT_NewFrame();
+    ImGui::NewFrame();
+
     glEnable(GL_LIGHTING);
+
     scenes[selected_scene].draw();
 
     // draw rays : (for debug)
@@ -142,14 +232,20 @@ void draw () {
         glVertex3f( rays[r].first[0],rays[r].first[1],rays[r].first[2] );
         glVertex3f( rays[r].second[0], rays[r].second[1], rays[r].second[2] );
     }
+
     glEnd();
+    displayImGuiUI();
+
 }
 
 void display () {
+
+
     glLoadIdentity ();
     glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     camera.apply ();
     draw ();
+
     glFlush ();
     glutSwapBuffers ();
 }
@@ -184,25 +280,24 @@ void ray_trace_from_camera() {
     // (store photon : position + light power + incoming direction)
     // utiliser kd tree pour stocker photons 
 
+
     std::vector<Photon> photons;
-
-
-    //scenes[selected_scene].photonMap(photons, 100000); // x rayons par source de lumière
-
-    std::cout << "photons  : " << photons.size() << std::endl;
-    
-    
-    KdTreePhotonMap kdTreePhotonMap(photons, 1);//20);
+    KdTreePhotonMap kdTreePhotonMap = KdTreePhotonMap(photons, 0);
+    if (g_usePhotonMapping){
+        scenes[selected_scene].photonMap(photons, g_photonCount); // x photons par source de lumière
+        std::cout << "photons stocké  : " << photons.size() << std::endl;
+        kdTreePhotonMap = KdTreePhotonMap(photons, 12);
+    }
     photons.clear();
 
     // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
 
-    camera.focalPlaneDistance = 10.1f;
-    camera.apertureSize = 0.1f;
+    camera.focalPlaneDistance = g_camera_focalPlaneDistance;
+    camera.apertureSize = g_camera_apertureSize;
 
 
     //unsigned int nsamples = 100;
-    unsigned int nsamples = 100;
+    unsigned int nsamples = g_samplesPerPixel;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
     auto start = std::chrono::high_resolution_clock::now();    
 
@@ -246,12 +341,19 @@ void ray_trace_from_camera() {
 
     char command[100];
     sprintf(command, "display rendu.ppm");
-    system(command);
+    if (system(command) == 0){
+        std::cout << "Image displayed" << std::endl;
+    }
 
 }
 
 
 void key (unsigned char keyPressed, int x, int y) {
+    ImGui_ImplGLUT_KeyboardFunc(keyPressed, x, y);
+    if (ImGui::GetIO().WantCaptureKeyboard) {
+        return; 
+    }
+
     Vec3 pos , dir;
     switch (keyPressed) {
     case 'f':
@@ -294,6 +396,11 @@ void key (unsigned char keyPressed, int x, int y) {
 }
 
 void mouse (int button, int state, int x, int y) {
+    ImGui_ImplGLUT_MouseFunc(button, state, x, y);
+    if (ImGui::GetIO().WantCaptureMouse) {
+        //std::cout << "ImGui wants to capture the mouse" << std::endl;
+        return;
+    }
     if (state == GLUT_UP) {
         mouseMovePressed = false;
         mouseRotatePressed = false;
@@ -323,6 +430,11 @@ void mouse (int button, int state, int x, int y) {
 }
 
 void motion (int x, int y) {
+    ImGui_ImplGLUT_MotionFunc(x, y); // Passer l'événement de mouvement de la souris à ImGui
+    if (ImGui::GetIO().WantCaptureMouse) {
+        return;
+    }
+
     if (mouseRotatePressed == true) {
         camera.rotate (x, y);
     }
@@ -339,6 +451,12 @@ void motion (int x, int y) {
 
 void reshape(int w, int h) {
     camera.resize (w, h);
+    SCREENWIDTH = w;
+    SCREENHEIGHT = h;
+    
+    // Notifier ImGui de la nouvelle taille de la fenêtre
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2((float)w, (float)h);
 }
 
 int main (int argc, char ** argv) {

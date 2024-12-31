@@ -33,6 +33,9 @@ struct Material {
     float n_uRepeat;
     float n_vRepeat;
 
+    float reflexivity;
+    float transmissibility;
+
 
     Material() {
         type = Material_Diffuse_Blinn_Phong;
@@ -46,6 +49,8 @@ struct Material {
         n_vRepeat = 1.; 
         t_uRepeat = 1.;
         t_vRepeat = 1.; 
+        reflexivity = 0.3;
+        transmissibility = 0.0;
         
     }
 };

@@ -4,6 +4,7 @@
 #include <vector>
 #include "Mesh.h"
 #include <cmath>
+#include "BoundingBox.h"
 
 struct RaySphereIntersection{
     bool intersectionExists = false;
@@ -41,7 +42,7 @@ public:
     float m_radius;
 
     Sphere() : Mesh() {}
-    Sphere(Vec3 c , float r) : Mesh() , m_center(c) , m_radius(r) {}
+    Sphere(Vec3 c , float r) : Mesh() , m_center(c) , m_radius(r){}
 
     void build_arrays(){
         unsigned int nTheta = 20 , nPhi = 20;

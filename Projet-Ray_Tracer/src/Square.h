@@ -11,6 +11,7 @@ struct RaySquareIntersection{
     float u,v;
     Vec3 intersection;
     Vec3 normal;
+    Vec3 rightVector;
 };
 
 
@@ -63,20 +64,20 @@ public:
     RaySquareIntersection intersect(const Ray &ray) const {
         RaySquareIntersection intersection;
 
-        Vec3 m_bottom_left = vertices[0].position;
-        Vec3 m_right_vector = vertices[1].position - vertices[0].position;
-        Vec3 m_up_vector = vertices[3].position - vertices[0].position;
-        Vec3 m_normal = Vec3::cross(m_right_vector, m_up_vector);  
-        m_normal.normalize();
+        Vec3 bottom_left = vertices[0].position;
+        Vec3 right_vector = vertices[1].position - vertices[0].position;
+        Vec3 up_vector = vertices[3].position - vertices[0].position;
+        Vec3 normal = Vec3::cross(right_vector, up_vector);  
+        normal.normalize();
 
-        float D = Vec3::dot(m_bottom_left, m_normal);
-        float denominator = Vec3::dot(ray.direction(), m_normal);
+        float D = Vec3::dot(bottom_left, normal);
+        float denominator = Vec3::dot(ray.direction(), normal);
 
         if( denominator >= 0.0001){ // si le determinant rayon.direction et plan.normal est nul, alors le rayon est parallele au plan donc pas d'intersection et si > 0, le rayon va "s'éloigner" donc pas d'intersection
             return intersection;
         }
 
-        float t = (D - Vec3::dot(ray.origin(), m_normal)) / denominator;
+        float t = (D - Vec3::dot(ray.origin(), normal)) / denominator;
 
         if( t <= 0.00001){ // si l'intersection est derrière la caméra on s'en occupe pas
             return intersection;
@@ -84,18 +85,19 @@ public:
 
         Vec3 intersection_point = ray.origin() + t * ray.direction();
         // coordonnées du point d'intersection dans le repère local du carré
-        Vec3 local_point = intersection_point - m_bottom_left;
+        Vec3 local_point = intersection_point - bottom_left;
         
-        float x = Vec3::dot(local_point, m_right_vector) / (m_right_vector.length() *m_right_vector.length()); // donne le rapport de longueur entre le point projeté sur le vecteur droit et la longueur du vecteur droit 
-        float y = Vec3::dot(local_point, m_up_vector) / (m_up_vector.length() *m_up_vector.length());
+        float x = Vec3::dot(local_point, right_vector) / (right_vector.length() *right_vector.length()); // donne le rapport de longueur entre le point projeté sur le vecteur droit et la longueur du vecteur droit 
+        float y = Vec3::dot(local_point, up_vector) / (up_vector.length() *up_vector.length());
             
         if(x >= 0.0f && x <= 1 && y >= 0.0f && y <= 1){ // si on est dans le carré, on a une intersection
             intersection.intersectionExists = true;
             intersection.t = t;
             intersection.intersection = intersection_point;
-            intersection.normal = m_normal;
+            intersection.normal = normal;
             intersection.u = x;
             intersection.v = y;
+            intersection.rightVector = right_vector;
         }
 
         return intersection;
