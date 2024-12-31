@@ -281,6 +281,7 @@ void idle () {
 void ray_trace_block(int start_x, int end_x, int start_y, int end_y, float w, float h, unsigned int nsamples, std::vector<Vec3>& image, KdTreePhotonMap& kdTreePhotonMap, Vec3 pos) {
     float inv_w = 1.0f / w;
     float inv_h = 1.0f / h;
+    float inv_nsamples = 1.0f / nsamples;
     for (int y = start_y; y < end_y; y++) {
         for (int x = start_x; x < end_x; x++) {
             Vec3 sum_color(0, 0, 0);
@@ -293,7 +294,7 @@ void ray_trace_block(int start_x, int end_x, int start_y, int end_y, float w, fl
                 );
                 sum_color += color;
             }
-            image[x + y * w] = sum_color / nsamples;
+            image[x + y * w] = sum_color * inv_nsamples;
         }
     }
 }
