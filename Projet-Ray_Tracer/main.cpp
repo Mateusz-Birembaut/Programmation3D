@@ -30,6 +30,9 @@
 #include <execution>
 #include <chrono>
 #include <algorithm>
+#include <thread>
+#include <vector>
+#include <mutex>
 
 #include "src/Scene.h"
 #include "src/Vec3.h"
@@ -266,19 +269,32 @@ void idle () {
     glutPostRedisplay ();
 }
 
+void ray_trace_block(int start_x, int end_x, int start_y, int end_y, int w, int h, unsigned int nsamples, std::vector<Vec3>& image, KdTreePhotonMap& kdTreePhotonMap, Vec3 pos) {
+    for (int y = start_y; y < end_y; y++) {
+        for (int x = start_x; x < end_x; x++) {
+            Vec3 sum_color(0, 0, 0);
+            for (unsigned int s = 0; s < nsamples; ++s) {
+                float u = (x + dist05(rng)) / w;
+                float v = (y + dist05(rng)) / h;
+                Vec3 color = scenes[selected_scene].rayTrace(
+                    kdTreePhotonMap,
+                    depth_of_field_ray(u, v, camera.focalPlaneDistance, camera.apertureSize, pos)
+                );
+                sum_color += color;
+            }
+            image[x + y * w] = sum_color / nsamples;
+        }
+    }
+}
+
 
 void ray_trace_from_camera() {
     int w = glutGet(GLUT_WINDOW_WIDTH)  ,   h = glutGet(GLUT_WINDOW_HEIGHT);
     std::cout << "Ray tracing a " << w << " x " << h << " image" << std::endl;
     camera.apply();
     Vec3 pos , dir;
-
     updateMatrices();
     pos = cameraSpaceToWorldSpace(Vec3(0,0,0));
-
-    // pre process : cast rays random depuis sources de lumière stocker dans une position 3d
-    // (store photon : position + light power + incoming direction)
-    // utiliser kd tree pour stocker photons 
 
 
     std::vector<Photon> photons;
@@ -290,34 +306,31 @@ void ray_trace_from_camera() {
     }
     photons.clear();
 
-    // 2eme pass : ray stracing, rayon et pour les rayons secondaires, on cherche les k photons les plus proches
-
     camera.focalPlaneDistance = g_camera_focalPlaneDistance;
     camera.apertureSize = g_camera_apertureSize;
 
 
-    //unsigned int nsamples = 100;
+    int num_threads = std::thread::hardware_concurrency();
+    int block_size_x = w / num_threads;
+    int block_size_y = h / num_threads;
+
     unsigned int nsamples = g_samplesPerPixel;
     std::vector< Vec3 > image( w*h , Vec3(0,0,0) );
     auto start = std::chrono::high_resolution_clock::now();    
 
-    for (int y=0; y<h; y++){
-        for (int x=0; x<w; x++) {
-            Vec3 sum_color(0, 0, 0);
-            for (unsigned int s = 0; s < nsamples; ++s) {
-                float u = (x + dist05(rng)) / w;
-                float v = (y + dist05(rng)) / h;
-                //screen_space_to_world_space_ray_2(u, v, pos, dir);
-                
-                Vec3 color = scenes[selected_scene].rayTrace(
-                    kdTreePhotonMap,
-                    depth_of_field_ray(u, v, camera.focalPlaneDistance, camera.apertureSize, pos)
-                );
-
-                sum_color += color;
-            }
-            image[x + y * w] = sum_color / nsamples;
+    std::vector<std::thread> threads;
+    for (int i = 0; i < num_threads; ++i) {
+        for (int j = 0; j < num_threads; ++j) {
+            int start_x = i * block_size_x;
+            int end_x = (i == num_threads - 1) ? w : start_x + block_size_x;
+            int start_y = j * block_size_y;
+            int end_y = (j == num_threads - 1) ? h : start_y + block_size_y;
+            threads.emplace_back(ray_trace_block, start_x, end_x, start_y, end_y, w, h, nsamples, std::ref(image), std::ref(kdTreePhotonMap), pos);
         }
+    }
+
+    for (auto& thread : threads) {
+        thread.join();
     }
 
     auto end = std::chrono::high_resolution_clock::now();
