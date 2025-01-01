@@ -9,8 +9,11 @@
 #
 # NE PAS OUBLIER D'AJOUTER LA LISTE DES DEPENDANCES A LA FIN DU FICHIER
 
+MAKEFLAGS += -B -j4
+
 CIBLE = main
-SRCS =  src/Camera.cpp main.cpp src/Trackball.cpp src/imageLoader.cpp src/Mesh.cpp 
+SRCS =  src/Camera.cpp main.cpp src/Trackball.cpp src/imageLoader.cpp src/Mesh.cpp src/Globals.cpp \
+        imgui/imgui.cpp imgui/imgui_demo.cpp imgui/imgui_draw.cpp imgui/imgui_tables.cpp imgui/imgui_widgets.cpp imgui/imgui_impl_glut.cpp imgui/imgui_impl_opengl3.cpp
 LIBS =  -lglut -lGLU -lGL -lm -lpthread 
 #########################################################"
 
@@ -23,14 +26,14 @@ CC = g++
 CPP = g++
 
 # options du compilateur          
-CFLAGS = -Wall -O3 -fopenmp
-CXXFLAGS = -Wall -O3 -fopenmp
+CFLAGS = -Wall -O3 
+CXXFLAGS = -Wall -O3 
 
 # option du preprocesseur
-CPPFLAGS =  -I$(INCDIR) 
+CPPFLAGS =  -I$(INCDIR) -Iimgui
 
 # options du linker et liste des biblioth�ques � charger
-LDFLAGS = -L/usr/X11R6/lib -fopenmp         
+LDFLAGS = -L/usr/X11R6/lib        
 LDLIBS = -L$(LIBDIR) $(LIBS)  
 
 # construire la liste des fichiers objets une nouvelle chaine � partir
@@ -53,13 +56,3 @@ clean:
 
 veryclean: clean
 	rm -f $(BINDIR)/$(CIBLE)
-
-dep:
-	gcc $(CPPFLAGS) -MM $(SRCS)
-
-# liste des d�pendances g�n�r�e par 'make dep'
-Camera.o: src/Camera.cpp src/Camera.h src/Vec3.h src/Trackball.h
-main.o: main.cpp src/Vec3.h src/Camera.h src/Trackball.h
-Trackball.o: src/Trackball.cpp src/Trackball.h
-
-

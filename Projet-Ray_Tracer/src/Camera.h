@@ -54,7 +54,16 @@ private:
   float lastquat[4];
   float x, y, z;
   float _zoom;
+public:
+  float focalPlaneDistance;
+  float apertureSize;
+
 };
+
+
+
+
+
 
 #endif // CAMERA_H
 // Some Emacs-Hints -- please don't remove:

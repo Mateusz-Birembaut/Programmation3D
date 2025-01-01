@@ -7,6 +7,7 @@
 #include <fstream>
 #include "Vec3.h"
 #include <algorithm>
+#include "DataTypeEnum.h"
 
 // Source courtesy of J. Manson
 // http://josiahmanson.com/prose/optimize_ppm/
@@ -21,15 +22,27 @@ struct RGB
     unsigned char r, g, b;
 };
 
-struct ImageRGB
+
+
+struct ImageRGB 
 {
     int w, h;
     vector<RGB> data;
+    string name;
 
-    Vec3 sampleTextureAsVec3(float u, float v) {
-        u = 1.0f - u; // flip u 
-        std::clamp(u, 0.0f, 1.0f);
-        std::clamp(v, 0.0f, 1.0f);
+    Vec3 samplePPMtoVec3(float u, float v , int repeatU, int repeatV, DATA_TYPE data_type) {
+        u *= repeatU;
+        v *= repeatV;
+
+        u = u - std::floor(u);
+        v = v - std::floor(v);
+
+        if ( data_type == DATA_TYPE::NORMAL_MAP ) {
+            v = 1.0f - v; // flip 
+        }
+
+        u = std::clamp(u, 0.0f, 1.0f);
+        v = std::clamp(v, 0.0f, 1.0f);
 
         int x = static_cast<int>(u * (w - 1));
         int y = static_cast<int>(v * (h - 1));
@@ -38,6 +51,7 @@ struct ImageRGB
 
         if (index < 0 || index >= data.size()) {
             std::cerr << "Error: Texture coordinate out of bounds. u: " << u << ", v: " << v << ", index: " << index << std::endl;
+            std::cerr << "Texture size: " << w << "x" << h << std::endl;
             return Vec3(0.0f, 0.0f, 0.0f);
         }
 
@@ -48,8 +62,10 @@ struct ImageRGB
                     static_cast<float>(color.b) / 255.0f);
     }
 
+
 };
 
+void setName(ImageRGB & _img ,const string & _name);
 
 void load_ppm(ImageRGB &img, const string &name);
 

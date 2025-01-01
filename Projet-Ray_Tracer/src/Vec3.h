@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <immintrin.h> // SIMD
 
 class Vec3;
 static inline Vec3 operator + (Vec3 const & a , Vec3 const & b);
@@ -11,130 +12,149 @@ static inline Vec3 operator * (float a , Vec3 const & b);
 
 class Vec3 {
 private:
-    float mVals[3];
+    union {
+        struct { float x, y, z; };
+        float mVals[3];
+        __m128 simd; // Utilisation de SIMD pour les opérations vectorielles
+    };
 public:
-    Vec3() {mVals[0] = mVals[1] = mVals[2] = 0.f;}
-    Vec3( float x , float y , float z ) {
-       mVals[0] = x; mVals[1] = y; mVals[2] = z;
-    }
+    Vec3() : simd(_mm_setzero_ps()) {}
+    Vec3(float x, float y, float z) : simd(_mm_set_ps(0.0f, z, y, x)) {}
+    Vec3(__m128 simd) : simd(simd) {}
+
+    __m128 getSimd() const { return simd; }
+
     float & operator [] (unsigned int c) { return mVals[c]; }
     float operator [] (unsigned int c) const { return mVals[c]; }
+
     Vec3 operator = (Vec3 const & other) {
-       mVals[0] = other[0] ; mVals[1] = other[1]; mVals[2] = other[2];
+       simd = other.simd;
        return *this;
     }
+
     float squareLength() const {
        return mVals[0]*mVals[0] + mVals[1]*mVals[1] + mVals[2]*mVals[2];
     }
-    float length() const { return sqrt( squareLength() ); }
-    inline
-    float norm() const { return length(); }
-    inline
-    float squareNorm() const { return squareLength(); }
-    void normalize() { float L = length(); mVals[0] /= L; mVals[1] /= L; mVals[2] /= L; }
-    static float dot( Vec3 const & a , Vec3 const & b ) {
-       return a[0]*b[0] + a[1]*b[1] + a[2]*b[2];
-    }
-    static Vec3 cross( Vec3 const & a , Vec3 const & b ) {
-       return Vec3( a[1]*b[2] - a[2]*b[1] ,
-                    a[2]*b[0] - a[0]*b[2] ,
-                    a[0]*b[1] - a[1]*b[0] );
-    }
-    
-    void operator += (Vec3 const & other) {
-        mVals[0] += other[0];
-        mVals[1] += other[1];
-        mVals[2] += other[2];
-    } 
 
+    float length() const { return sqrt(squareLength()); }
+
+    inline float norm() const { return length(); }
+    inline float squareNorm() const { return squareLength(); }
+
+    void normalize() {
+        float L = length();
+        simd = _mm_div_ps(simd, _mm_set1_ps(L));
+    }
+
+    static float dot(Vec3 const & a, Vec3 const & b) {
+        __m128 mul = _mm_mul_ps(a.simd, b.simd);
+        float result[4];
+        _mm_storeu_ps(result, mul);
+        return result[0] + result[1] + result[2];
+    }
+
+    static Vec3 cross(Vec3 const & a, Vec3 const & b) {
+        return Vec3(
+            a[1] * b[2] - a[2] * b[1],
+            a[2] * b[0] - a[0] * b[2],
+            a[0] * b[1] - a[1] * b[0]
+        );
+    }
+
+    void operator += (Vec3 const & other) {
+        simd = _mm_add_ps(simd, other.simd);
+    }
 
     void operator -= (Vec3 const & other) {
-        mVals[0] -= other[0];
-        mVals[1] -= other[1];
-        mVals[2] -= other[2];
+        simd = _mm_sub_ps(simd, other.simd);
     }
+
     void operator *= (float s) {
-        mVals[0] *= s;
-        mVals[1] *= s;
-        mVals[2] *= s;
+        simd = _mm_mul_ps(simd, _mm_set1_ps(s));
     }
+
     void operator /= (float s) {
-        mVals[0] /= s;
-        mVals[1] /= s;
-        mVals[2] /= s;
+        simd = _mm_div_ps(simd, _mm_set1_ps(s));
     }
-    static Vec3 compProduct(Vec3 const & a , Vec3 const & b) {
-        return Vec3(a[0]*b[0] , a[1]*b[1] , a[2]*b[2]);
+
+    static Vec3 compProduct(Vec3 const & a, Vec3 const & b) {
+        return Vec3(_mm_mul_ps(a.simd, b.simd));
     }
 
     unsigned int getMaxAbsoluteComponent() const {
-        if( fabs(mVals[0]) > fabs(mVals[1]) ) {
-            if( fabs(mVals[0]) > fabs(mVals[2]) ) {
+        if (fabs(mVals[0]) > fabs(mVals[1])) {
+            if (fabs(mVals[0]) > fabs(mVals[2])) {
                 return 0;
             }
             return 2;
         }
-        if( fabs(mVals[1]) > fabs(mVals[2]) ) {
+        if (fabs(mVals[1]) > fabs(mVals[2])) {
             return 1;
         }
         return 2;
     }
+
     Vec3 getOrthogonal() const {
         unsigned int c1 = getMaxAbsoluteComponent();
-        unsigned int c2 = (c1+1)%3;
-        Vec3 res( 0,0,0 );
+        unsigned int c2 = (c1 + 1) % 3;
+        Vec3 res(0, 0, 0);
         res[c1] = mVals[c2];
         res[c2] = -mVals[c1];
         return res;
     }
 
     int maxDimension() const {
-        if( mVals[0] > mVals[1] ) {
-            if( mVals[0] > mVals[2] ) {
+        if (mVals[0] > mVals[1]) {
+            if (mVals[0] > mVals[2]) {
                 return 0;
             }
             return 2;
         }
-        if( mVals[1] > mVals[2] ) {
+        if (mVals[1] > mVals[2]) {
             return 1;
         }
         return 2;
     }
-    
 };
 
-static inline Vec3 operator + (Vec3 const & a , Vec3 const & b) {
-   return Vec3(a[0]+b[0] , a[1]+b[1] , a[2]+b[2]);
+static inline Vec3 operator + (Vec3 const & a, Vec3 const & b) {
+    return Vec3(_mm_add_ps(a.getSimd(), b.getSimd()));
 }
-static inline Vec3 operator - (Vec3 const & a , Vec3 const & b) {
-   return Vec3(a[0]-b[0] , a[1]-b[1] , a[2]-b[2]);
+
+static inline Vec3 operator - (Vec3 const & a, Vec3 const & b) {
+    return Vec3(_mm_sub_ps(a.getSimd(), b.getSimd()));
 }
-static inline Vec3 operator * (float a , Vec3 const & b) {
-   return Vec3(a*b[0] , a*b[1] , a*b[2]);
+
+static inline Vec3 operator * (float a, Vec3 const & b) {
+    return Vec3(_mm_mul_ps(_mm_set1_ps(a), b.getSimd()));
 }
-static inline Vec3 operator * (Vec3 const & b , float a ) {
-   return Vec3(a*b[0] , a*b[1] , a*b[2]);
+
+static inline Vec3 operator * (Vec3 const & b, float a) {
+    return Vec3(_mm_mul_ps(_mm_set1_ps(a), b.getSimd()));
 }
-static inline Vec3 operator / (Vec3 const &  a , float b) {
-   return Vec3(a[0]/b , a[1]/b , a[2]/b);
+
+static inline Vec3 operator / (Vec3 const & a, float b) {
+    return Vec3(_mm_div_ps(a.getSimd(), _mm_set1_ps(b)));
 }
-static inline std::ostream & operator << (std::ostream & s , Vec3 const & p) {
+
+static inline std::ostream & operator << (std::ostream & s, Vec3 const & p) {
     s << p[0] << " " << p[1] << " " << p[2];
     return s;
 }
-static inline std::istream & operator >> (std::istream & s , Vec3 & p) {
+
+static inline std::istream & operator >> (std::istream & s, Vec3 & p) {
     s >> p[0] >> p[1] >> p[2];
     return s;
 }
 
-
-static inline Vec3 operator * (Vec3 const & b , Vec3 const & a ) {
-   return Vec3(a[0]*b[0] , a[1]*b[1] , a[2]*b[2]);
+static inline Vec3 operator * (Vec3 const & b, Vec3 const & a) {
+    return Vec3(_mm_mul_ps(a.getSimd(), b.getSimd()));
 }
 
-static inline bool  operator==(Vec3 const & b , Vec3 const & a ) {
+static inline bool operator == (Vec3 const & b, Vec3 const & a) {
     return (b[0] == a[0] && b[1] == a[1] && b[2] == a[2]);
 }
+
 
 class Mat3 {
 public:
@@ -167,6 +187,12 @@ public:
         for (int i = 0; i < 3; ++i)
             for (int j = 0; j < 3; ++j)
                 (*this)(i, j) = m(i, j);
+    }
+
+    Mat3(const Vec3& col1, const Vec3& col2, const Vec3& col3) {
+        vals[0] = col1[0]; vals[1] = col1[1]; vals[2] = col1[2];
+        vals[3] = col2[0]; vals[4] = col2[1]; vals[5] = col2[2];
+        vals[6] = col3[0]; vals[7] = col3[1]; vals[8] = col3[2];
     }
 
     // Multiplication de matrice avec un Vec3 : m.p
