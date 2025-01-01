@@ -88,7 +88,10 @@ public:
     std::vector<Mesh>& getMeshes()  { return meshes; }
 
     void updateSphere(unsigned int index) { spheres[index].build_arrays(); }
-    void updateSquare(unsigned int index) { squares[index].build_arrays(); }
+    void updateSquare(unsigned int index) { 
+        std::cout << "updating square : " << index  << std::endl;
+        squares[index].build_arrays(); 
+    }
     void updateMesh(unsigned int index) { meshes[index].build_arrays(); }
 
 
@@ -280,27 +283,14 @@ public:
                 
                 if (g_usePhotonMapping){
                     Vec3 indirectLight = Vec3(0,0,0);
-                    indirectLight = computeRadiance(P, N, photonMap, g_searchRadius, mat.diffuse_material);
+                    //indirectLight = computeRadiance(P, N, photonMap, g_searchRadius, mat.diffuse_material);
+                    indirectLight = estimateRadiance(P, N, photonMap, g_searchRadius) ;
                     color = indirectLight;
                 }else {
                     Vec3 directLight(0,0,0);
-                    for(Light& light : lights) {
-                        L = light.pos - P; // le vecteur du point d'intersection vers la lumière
-                        L.normalize();
-
-                        float unblocked_rays_percentage = traceShadowRays(light, P, g_shadowRays);
-                        if (unblocked_rays_percentage == 0){ 
-                            continue;
-                        }
-                        
-                        Vec3 color_current = shade(light.material, L, V, N, ray.origin(), mat);
-                        directLight += color_current * unblocked_rays_percentage;
-                    }
-
-                    directLight /= lights.size();
+                    directLight = computeDirectLight(P, N, V, mat);
                     color = directLight;
                 }
-            
             }
                  
             if( NRemainingBounces > 0 ){
@@ -320,47 +310,23 @@ public:
         return color;
     }
 
-/*     Vec3 estimateRadiance(const Vec3& point, const Vec3& normal, const KdTreePhotonMap& kdTreePhoton, const float radius) {
-        Vec3 radiance(0,0,0);
-        int photonCount = 0;
-        float maxRadius2 = radius * radius;
+    Vec3 computeDirectLight(const Vec3& P, const Vec3& N, const Vec3& V, const Material& mat) {
+        Vec3 directLight(0,0,0);
+        for(Light& light : lights) {
+            Vec3 L = light.pos - P; // le vecteur du point d'intersection vers la lumière
+            L.normalize();
 
-        std::vector<Photon> nearbyPhotons = kdTreePhoton.findNearestPhotons(point, radius);
-        
-        for(const Photon& photon : nearbyPhotons) {
-            float dist2 = (point - photon.position).length();
-            dist2 = dist2 * dist2;
-            float weight = 1.0f - sqrt(dist2)/radius;
-            float cosTheta = Vec3::dot(normal, photon.direction);
-            if(cosTheta > 0) {
-                radiance += photon.power * weight * cosTheta;
-                photonCount++;
+            float unblocked_rays_percentage = traceShadowRays(light, P, g_shadowRays);
+            if (unblocked_rays_percentage == 0){ 
+                continue;
             }
-        }
-        
-        if(photonCount > 0) {
-            float area = 4 * M_PI * maxRadius2; // ou 4 ou 1
-            radiance *= (1.0f / area);
-        }
-        
-        return radiance;
-    }
- */
-    Vec3 computeRadiance(const Vec3& point, const Vec3& normal, const KdTreePhotonMap& kdTreePhoton, const float radius, const Vec3& diffuse_color) {
-        std::vector<Photon> nearbyPhotons = kdTreePhoton.findNearestPhotons(point, radius);
-        if (nearbyPhotons.size() == 0) {
-            return Vec3(0,0,0);
-        }else {
-            Vec3 radiance(0,0,0);
-            float area =  M_PI * radius * radius ;
-            for (const Photon& photon : nearbyPhotons) {
-                radiance += photon.power;
-            }
-            radiance /= area;
-            return radiance * diffuse_color;
-        }
             
+            Vec3 color_current = shade(light.material, L, V, N, P, mat);
+            directLight += color_current * unblocked_rays_percentage;
+        }
 
+        directLight /= lights.size();
+        return directLight;
     }
 
     Vec3 estimateRadiance(const Vec3& point, const Vec3& normal, const KdTreePhotonMap& kdTreePhoton, const float radius) {
@@ -382,12 +348,30 @@ public:
         }
         
         if(photonCount > 0) {
-            float area =  M_PI * maxRadius2; // ou 4 ou 1
-            radiance /= area;
+            float area = 2 * M_PI * maxRadius2; // ou 4 ou 1
+            radiance *= (1.0f / area);
         }
         
         return radiance;
     }
+
+    Vec3 computeRadiance(const Vec3& point, const Vec3& normal, const KdTreePhotonMap& kdTreePhoton, const float radius, const Vec3& diffuse_color) {
+        std::vector<Photon> nearbyPhotons = kdTreePhoton.findNearestPhotons(point, radius);
+        if (nearbyPhotons.size() == 0) {
+            return Vec3(0,0,0);
+        }else {
+            Vec3 radiance(0,0,0);
+            float area =  M_PI * radius * radius ;
+            for (const Photon& photon : nearbyPhotons) {
+                radiance += photon.power;
+            }
+            radiance /= area;
+            return radiance * diffuse_color;
+        }
+            
+
+    }
+
 
     Vec3 transformToWorldSpace(const Vec3& tangentSpaceNormal, const Mat3& TBN) {
         Vec3 worldNormal;
@@ -819,7 +803,7 @@ public:
             s.scale(Vec3(2., 2., 1.));
             s.translate(Vec3(0., 0., -2.));
             s.build_arrays();
-            s.material.diffuse_material = Vec3( 0.5,0.5,0.5 );
+            s.material.diffuse_material = Vec3( 1.,1.,1. );
             s.material.specular_material = Vec3( 1.,1.,1. );
             s.material.shininess = 16* 4;
         }
@@ -837,8 +821,8 @@ public:
             s.material.specular_material = Vec3( 1.,1.,1.);
             s.material.shininess = 16* 4;
 
-/*             s.material.normalMap = &normalMaps[normalMaps.size() - 1];
-            s.material.texture = &textures[textures.size() - 1]; */
+            s.material.normalMap = &normalMaps[normalMaps.size() - 1];
+            s.material.texture = &textures[textures.size() - 1];
 
 
         }

@@ -94,6 +94,7 @@ void initImGui() {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard; 
     io.DisplaySize = ImVec2((float)SCREENWIDTH, (float)SCREENHEIGHT);
     ImGui::StyleColorsDark();
     ImGui_ImplGLUT_Init();
@@ -143,38 +144,104 @@ void clear () {
 
 void addSpheresUI(Scene & scene) {
     std::vector<Sphere>& spheres = scene.getSpheres();
+    if (spheres.size() == 0 ){
+        return;
+    }
+    if (ImGui::CollapsingHeader("Spheres :")) {
 
-    for (size_t i = 0; i < spheres.size(); i++){
-        ImGui::PushID(static_cast<int>(i));
-        if (ImGui::CollapsingHeader("Sphere ", i)) {
-            Sphere & sphere = spheres[i];
-            if (ImGui::SliderFloat("Radius", &sphere.m_radius, 0.0f, 10.0f))
-                scene.updateSphere(i);
-            if (ImGui::InputFloat3("Center", &sphere.m_center[0]))
-                scene.updateSphere(i);
-            if (sphere.material.type == Material_Glass){
-                ImGui::InputFloat("Index of Refraction", &sphere.material.index_medium);
-            }
-            
-/*             if (sphere.material.texture != nullptr){ 
-                if (ImGui::CollapsingHeader("Texture Settings")) {
+        for (size_t i = 0; i < spheres.size(); i++){
+            ImGui::PushID(static_cast<int>(i));
+            if (ImGui::CollapsingHeader("Sphere ", i)) {
+                Sphere & sphere = spheres[i];
+                if (ImGui::SliderFloat("Radius", &sphere.m_radius, 0.0f, 10.0f))
+                    scene.updateSphere(i);
+                if (ImGui::SliderFloat3("Center", &sphere.m_center[0], -10.0f, 10.0f))
+                    scene.updateSphere(i);
+                if (sphere.material.type == Material_Glass){
+                    ImGui::SliderFloat("Index of Refraction", &sphere.material.index_medium, 1.0f, 3.0f);
+                }
+                
+                if (sphere.material.texture != nullptr){ 
                     ImGui::Text("Texture : %s", sphere.material.texture->name.c_str());
                     ImGui::InputFloat("Repeat x ", &sphere.material.t_uRepeat);
                     ImGui::InputFloat("Repeat y ", &sphere.material.t_vRepeat);
+                    
                 }
-            }
-            if (sphere.material.normalMap != nullptr){ 
-                if (ImGui::CollapsingHeader("Normal Map Settings")) {
+                if (sphere.material.normalMap != nullptr){ 
                     ImGui::Text("Normal Map : %s", sphere.material.normalMap->name.c_str());
                     ImGui::InputFloat("Repeat x ", &sphere.material.n_uRepeat);
                     ImGui::InputFloat("Repeat y ", &sphere.material.n_vRepeat);
                 }
-            } */
+            }
+            
+            ImGui::PopID();
+            ImGui::Separator();
         }
-        
-        ImGui::PopID();
-        ImGui::Separator();
     }
+}
+
+void addSquaresUI(Scene & scene) {
+    std::vector<Square>& squares = scene.getSquares();
+    if (squares.size() == 0 ){
+        return;
+    }
+    if (ImGui::CollapsingHeader("Squares :")) {
+        for (size_t i = 0; i < squares.size(); i++){
+            ImGui::PushID(static_cast<int>(i));
+            if (ImGui::CollapsingHeader("Square ", i)) {
+                Square & square = squares[i];
+                if (ImGui::SliderFloat3("Coin bas gauche ", &square.m_bottom_left[0], -10.0f, 10.0f))
+                    scene.updateSquare(i);
+                if (ImGui::SliderFloat3("right vector", &square.m_right_vector[0], -10.0f, 10.0f))
+                    scene.updateSquare(i);
+                if (ImGui::SliderFloat3("up vector", &square.m_up_vector[0], -10.0f, 10.0f))
+                    scene.updateSquare(i);
+                if (square.material.type == Material_Glass){
+                    ImGui::SliderFloat("Index of Refraction", &square.material.index_medium, 1.0f, 3.0f);
+                }
+                if (square.material.texture != nullptr){ 
+                    if (ImGui::CollapsingHeader("Texture Settings")) {
+                        ImGui::Text("Texture : %s", square.material.texture->name.c_str());
+                        ImGui::InputFloat("Repeat x ", &square.material.t_uRepeat);
+                        ImGui::InputFloat("Repeat y ", &square.material.t_vRepeat);
+                    }
+                }
+                if (square.material.normalMap != nullptr){ 
+                    if (ImGui::CollapsingHeader("Normal Map Settings")) {
+                        ImGui::Text("Normal Map : %s", square.material.normalMap->name.c_str());
+                        ImGui::InputFloat("Repeat x ", &square.material.n_uRepeat);
+                        ImGui::InputFloat("Repeat y ", &square.material.n_vRepeat);
+                    }
+                }
+            }
+            
+            ImGui::PopID();
+            ImGui::Separator();
+        }
+    }
+}
+
+void addLightsUI(Scene & scene){
+    std::vector<Light>& lights = scene.getLights();
+    if (lights.size() == 0 ){
+        return;
+    }
+
+    if (ImGui::CollapsingHeader("Lights :")) {
+        for (size_t i = 0; i < lights.size(); i++){
+            ImGui::PushID(static_cast<int>(i));
+            if (ImGui::CollapsingHeader("Light ", i)) {
+                Light & light = lights[i];
+                ImGui::SliderFloat3("Position", &light.pos[0], -10.0f, 10.0f);
+                ImGui::SliderFloat("Radius", &light.radius, 0.0f, 10.0f);
+                ImGui::SliderFloat("Power Correction", &light.powerCorrection, 0.0f, 1000.0f);
+                ImGui::SliderFloat3("Material", &light.material[0], 0.0f, 1.0f);
+            }
+            ImGui::PopID();
+            ImGui::Separator();
+        }
+    }
+
 }
 
 void displayImGuiUI() {
@@ -193,7 +260,10 @@ void displayImGuiUI() {
 
     ImGui::Text("Objects dans la scene :");
     Scene & scene = scenes[selected_scene];
+
+    addLightsUI(scene);
     addSpheresUI(scene);
+    addSquaresUI(scene);
 
 
     ImGui::Separator();
@@ -343,7 +413,7 @@ void ray_trace_from_camera() {
 
     for (auto& thread : threads) {
         thread.join();
-    }
+    } 
 
     auto end = std::chrono::high_resolution_clock::now();
     std::chrono::duration<double> elapsed = end - start;
@@ -375,6 +445,7 @@ void ray_trace_from_camera() {
 
 void key (unsigned char keyPressed, int x, int y) {
     ImGui_ImplGLUT_KeyboardFunc(keyPressed, x, y);
+
     if (ImGui::GetIO().WantCaptureKeyboard) {
         return; 
     }
@@ -474,6 +545,19 @@ void motion (int x, int y) {
     }
 }
 
+void specialKey(int key, int x, int y) {
+    ImGui_ImplGLUT_SpecialFunc(key, x, y);
+
+    if (ImGui::GetIO().WantCaptureKeyboard) {
+        return; 
+    }
+
+}
+
+void specialKeyUp(int key, int x, int y) {
+    ImGui_ImplGLUT_SpecialUpFunc(key, x, y);
+}
+
 void reshape(int w, int h) {
     camera.resize (w, h);
     SCREENWIDTH = w;
@@ -498,6 +582,7 @@ int main (int argc, char ** argv) {
     glutIdleFunc (idle);
     glutDisplayFunc (display);
     glutKeyboardFunc (key);
+    glutSpecialFunc(specialKey);
     glutReshapeFunc (reshape);
     glutMotionFunc (motion);
     glutMouseFunc (mouse);
