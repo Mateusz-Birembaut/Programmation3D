@@ -34,6 +34,8 @@
 #include <vector>
 #include <mutex>
 
+#include <xmmintrin.h> // Inclure les intrinsics SIMD
+
 #include "src/Scene.h"
 #include "src/Vec3.h"
 #include "src/Camera.h"
@@ -190,12 +192,6 @@ void addSquaresUI(Scene & scene) {
             ImGui::PushID(static_cast<int>(i));
             if (ImGui::CollapsingHeader("Square ", i)) {
                 Square & square = squares[i];
-                if (ImGui::SliderFloat3("Coin bas gauche ", &square.m_bottom_left[0], -10.0f, 10.0f))
-                    scene.updateSquare(i);
-                if (ImGui::SliderFloat3("right vector", &square.m_right_vector[0], -10.0f, 10.0f))
-                    scene.updateSquare(i);
-                if (ImGui::SliderFloat3("up vector", &square.m_up_vector[0], -10.0f, 10.0f))
-                    scene.updateSquare(i);
                 if (square.material.type == Material_Glass){
                     ImGui::SliderFloat("Index of Refraction", &square.material.index_medium, 1.0f, 3.0f);
                 }

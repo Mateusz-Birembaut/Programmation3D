@@ -63,7 +63,7 @@ public:
         }
 
         Vec3 diff = _parentBox.max - _parentBox.min;
-        _node->dimSplit = diff.maxDimension(); 
+        _node->dimSplit = diff.getMaxAbsoluteComponent(); 
         //_node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
         _node->splitDistance = findBestSplit(_node, _parentBox, _triangles, _node->dimSplit, 10);
 
@@ -290,7 +290,7 @@ public:
         }
 
         Vec3 diff = _parentBox.max - _parentBox.min;
-        _node->dimSplit = diff.maxDimension(); 
+        _node->dimSplit = diff.getMaxAbsoluteComponent(); 
         //_node->splitDistance = _parentBox.min[_node->dimSplit] + diff[_node->dimSplit] / 2; 
         _node->splitDistance = findMedian(_photons, _node->dimSplit);
 

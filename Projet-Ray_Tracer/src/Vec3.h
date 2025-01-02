@@ -14,7 +14,6 @@ class Vec3 {
 private:
     union {
         struct { float x, y, z; };
-        float mVals[3];
         __m128 simd; // Utilisation de SIMD pour les opérations vectorielles
     };
 public:
@@ -24,8 +23,20 @@ public:
 
     __m128 getSimd() const { return simd; }
 
-    float & operator [] (unsigned int c) { return mVals[c]; }
-    float operator [] (unsigned int c) const { return mVals[c]; }
+    float & operator [] (unsigned int c) {
+        switch(c) {
+            case 0: return x;
+            case 1: return y;
+            default: return z;
+        }
+    }
+    float operator [] (unsigned int c) const {
+        switch(c) {
+            case 0: return x;
+            case 1: return y;
+            default: return z;
+        }
+    }
 
     Vec3 operator = (Vec3 const & other) {
        simd = other.simd;
@@ -33,7 +44,7 @@ public:
     }
 
     float squareLength() const {
-       return mVals[0]*mVals[0] + mVals[1]*mVals[1] + mVals[2]*mVals[2];
+        return x*x + y*y + z*z;
     }
 
     float length() const { return sqrt(squareLength()); }
@@ -82,13 +93,13 @@ public:
     }
 
     unsigned int getMaxAbsoluteComponent() const {
-        if (fabs(mVals[0]) > fabs(mVals[1])) {
-            if (fabs(mVals[0]) > fabs(mVals[2])) {
+        if (fabs(x) > fabs(y)) {
+            if (fabs(x) > fabs(z)) {
                 return 0;
             }
             return 2;
         }
-        if (fabs(mVals[1]) > fabs(mVals[2])) {
+        if (fabs(y) > fabs(z)) {
             return 1;
         }
         return 2;
@@ -98,23 +109,11 @@ public:
         unsigned int c1 = getMaxAbsoluteComponent();
         unsigned int c2 = (c1 + 1) % 3;
         Vec3 res(0, 0, 0);
-        res[c1] = mVals[c2];
-        res[c2] = -mVals[c1];
+        res[c1] = z;
+        res[c2] = -y;
         return res;
     }
 
-    int maxDimension() const {
-        if (mVals[0] > mVals[1]) {
-            if (mVals[0] > mVals[2]) {
-                return 0;
-            }
-            return 2;
-        }
-        if (mVals[1] > mVals[2]) {
-            return 1;
-        }
-        return 2;
-    }
 };
 
 static inline Vec3 operator + (Vec3 const & a, Vec3 const & b) {
